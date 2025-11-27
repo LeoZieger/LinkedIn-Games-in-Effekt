@@ -1,0 +1,88 @@
+module util/gamegrid
+
+import test
+
+
+record Gamegrid[A](width: Int, height: Int, grid:List[A])
+
+def coordsToIndex(x: Int, y: Int, width: Int): Int = y * width + x
+
+def set[A](grid: Gamegrid[A], x: Int, y: Int, a: A): Gamegrid[A] / Exception[OutOfBounds] = {
+  val index = coordsToIndex(x, y, grid.width)
+  val new_grid: List[A] = grid.grid.modifyAt(index) {a_ => a}
+  Gamegrid(grid.width, grid.height, new_grid)
+}
+
+def get[A](grid: Gamegrid[A], x: Int, y: Int): A / Exception[OutOfBounds] = {
+  val index = coordsToIndex(x, y, grid.width)
+  grid.grid.get(index)
+}
+
+def init[A](width: Int, height: Int, a: A): Gamegrid[A] / {} = {
+  var grid: List[A] = []
+  repeat(width * height) {
+    grid = Cons(a, grid)
+  }
+  Gamegrid(width, height, grid)
+}
+
+def initWith[A](width: Int, height: Int) {f: Tuple2[Int, Int] => A}: Gamegrid[A] / {} = {
+  var grid: List[A] = []
+  var index_x = 0
+  var index_y = 0
+
+  repeat(height) {
+    repeat(width) {
+      val a: A = f((index_x, index_y))
+      grid = Cons(a,grid)
+      index_x = index_x + 1
+    }
+    index_x = 0
+    index_y = index_y + 1
+  }
+
+  grid = grid.reverse()
+
+  Gamegrid(width, height, grid)
+}
+
+
+def show(grid: Gamegrid[String]): String / {} = {
+  var index = 0
+  var line = ""
+
+  grid.grid.foreach {a =>
+    if(index > grid.width - 1) {
+      line = line ++ "\n"
+      index = 0
+    }
+
+    line = line ++ a
+    index = index + 1
+  }
+  line
+}
+
+
+def testSuite(): Bool = suite("util/gamegrid") {
+
+  test("init") {
+    assertEqual(init(2,3,"O"),
+                Gamegrid(2,3,["O", "O", "O", "O", "O", "O"]))
+  }
+
+  test("initChessboard") {
+    assertEqual(initWith(2,3) {t => if(coordsToIndex(t.first, t.second, 2).mod(2) == 0){"O"} else {"X"}},
+                Gamegrid(2,3,["O", "X", "O", "X", "O", "X"]))
+  }
+
+  test("initAscending") {
+    assertEqual(initWith(2,3) {t => coordsToIndex(t.first, t.second, 2)},
+                Gamegrid(2,3,[0, 1, 2, 3, 4, 5]))
+  }
+
+  test("show") {
+    assertEqual(show(initWith(3,3) {t => if(coordsToIndex(t.first, t.second, 3).mod(2) == 0){"O"} else {"X"}}),
+                "OXO\nXOX\nOXO")
+  }
+}

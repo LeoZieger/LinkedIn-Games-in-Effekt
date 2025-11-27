@@ -2,9 +2,18 @@ module src/test
 
 import test
 import src/lib
+import process
 
-def main() = mainSuite("lib") {
-  test("Hello world") {
-    assertEqual(helloWorld(), "Hello, world!")
-  }
+import src/util/gamegrid
+
+def main(): Unit = {
+  // Feel free to use `ignore(...)` instead of `test(...)` to ignore a test!
+  // You can also comment things out, just remember to comment it back in ;D
+  val testResults =
+    [ gamegrid::testSuite()
+    ]
+
+  val allTestsSucceeded = testResults.all { res => res }
+  val exitCode = if (allTestsSucceeded) 0 else 1
+  process::exit(exitCode)
 }
