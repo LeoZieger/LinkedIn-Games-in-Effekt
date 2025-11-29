@@ -3,6 +3,8 @@ module src/games/queens
 import src/util/gamegrid
 import tty
 import random
+import bench
+
 
 type Status {
   Queen();
@@ -18,8 +20,6 @@ def show(s: Status): String / {} = {
   }
 }
 
-record Cell(status: Status, reg: Region)
-
 record Region(id: Int, color: String)
 
 val REGIONS: List[Region] = [Region(0, "\u001b[31m"),
@@ -27,8 +27,12 @@ val REGIONS: List[Region] = [Region(0, "\u001b[31m"),
                              Region(2, "\u001b[33m"),
                              Region(3, "\u001b[34m"),
                              Region(4, "\u001b[35m"),
-                             Region(5, "\u001b[36m")
+                             Region(5, "\u001b[36m"),
+                             Region(6, "\u001b[30m"),
                              ]
+
+record Cell(status: Status, reg: Region)
+val EMPTY_CELL = Cell(Empty(), Region(-1, "\u001b[37m")) // TODO: Fix this
 
 def placeRegions(grid: Gamegrid[Cell]): Gamegrid[Cell] / {} = {
   val size = grid.width
@@ -39,33 +43,40 @@ def placeRegions(grid: Gamegrid[Cell]): Gamegrid[Cell] / {} = {
 
   var populated_grid = grid // TODO: necessarry?
 
-  used_regions.foreach[Region] { reg =>
-    // with minstd;
-    minstd(1234) { // TODO: Use real seed
-      val rand_c = randomInt32()
-      val rand_r = randomInt32()
+  minstd(timestamp()) {
+    used_regions.foreach[Region] { reg =>
+      val col_index = randomInt(0, available_columns.size() - 1)
 
-      // Random column
-      val col = rand_c.mod(available_columns.size())
-
-      // Temp random row
-      val row = rand_r.mod(available_columns.size())
+      with on[OutOfBounds].panic;
+      val col = available_columns.get(col_index)
+      val row = randomInt(0, size - 1)
 
       val cell = Cell(Queen(), reg) // Queen-Cell with current region
-      populated_grid = populated_grid.set(row, col, cell)
+
+      with on[OutOfBounds].panic; // should not happen
+      populated_grid = populated_grid.set(col, row, cell)
+
+      available_columns = available_columns.deleteAt(col_index) // removing column the queen was placed at
     }
   }
-  <>
+  populated_grid
 }
 
-def generateGame(size: Int) = {
+def generateGame(size: Int): Gamegrid[Cell] / {} = {
   val num_regions = size // this is trivial
-  var board = gamegrid::init(size, size, "\u001b[31m" ++ "O" ++ Escape::RESET)
+  var board = gamegrid::init(size, size, EMPTY_CELL)
+
+  board = board.placeRegions()
   board
 }
 
+def show_board(b: Gamegrid[Cell]): String = {
+  show(
+    b.map[Cell, String]{c => c.reg.color ++ show(c.status) ++ Escape::RESET}
+  )
+}
 
 def main() = {
   var b = generateGame(5)
-  println(show(b))
+  println(show_board(b))
 }
