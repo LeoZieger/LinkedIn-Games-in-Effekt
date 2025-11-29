@@ -5,12 +5,14 @@ import src/lib
 import process
 
 import src/util/gamegrid
+import src/games/queens
 
 def main(): Unit = {
   // Feel free to use `ignore(...)` instead of `test(...)` to ignore a test!
   // You can also comment things out, just remember to comment it back in ;D
   val testResults =
-    [ gamegrid::testSuite()
+    [ gamegrid::testSuite(),
+      queens::testSuite()
     ]
 
   val allTestsSucceeded = testResults.all { res => res }

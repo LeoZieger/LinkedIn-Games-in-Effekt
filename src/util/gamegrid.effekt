@@ -20,11 +20,7 @@ def get[A](grid: Gamegrid[A], x: Int, y: Int): A / Exception[OutOfBounds] = {
 
 // Initialize Gamegrid with one value
 def init[A](width: Int, height: Int, a: A): Gamegrid[A] / {} = {
-  var grid: List[A] = []
-  repeat(width * height) {
-    grid = Cons(a, grid)
-  }
-  Gamegrid(width, height, grid)
+  Gamegrid(width, height, fill(width * height, a))
 }
 
 // Initialize Gamegrid with individual values

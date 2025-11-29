@@ -4,6 +4,7 @@ import src/util/gamegrid
 import tty
 import random
 import bench
+import test
 
 
 type Status {
@@ -34,14 +35,47 @@ val REGIONS: List[Region] = [Region(0, "\u001b[31m"),
 record Cell(status: Status, reg: Region)
 val EMPTY_CELL = Cell(Empty(), Region(-1, "\u001b[37m")) // TODO: Fix this
 
+def isQueenCell(c: Cell): Bool / {} = {
+  c.status match {
+    case Queen() => true
+    case _ => false
+  }}
+
+def isValidQueenPlacement(grid: Gamegrid[Cell], col: Int, row: Int): Bool / {} = {
+  with on[OutOfBounds].panic;
+  // Checking surrounding 8 cells if they already contain a queen
+  val surr_cells = [(col, row - 1), (col + 1, row - 1), (col + 1, row),
+                    (col + 1, row + 1), (col, row + 1), (col - 1, row + 1),
+                    (col - 1, row), (col - 1, row - 1)] // all 8 adjacent cells
+                    .filter {t => (t.first > 0 && t.first < grid.width &&
+                                   t.second > 0 || t.second < grid.height)} // filter out overlaps
+                    .map {t => grid.get(t.first, t.second)}
+
+  // Checking all cells in the same row
+  val horizontal_cells = (list::collect[Int] {range(0, col)}).append(
+                          list::collect[Int] {range(col + 1, grid.width)})
+                         .map {x => grid.get(x, row)}
+  
+  // Checking all cells in the same column
+  val vertical_cells = (list::collect[Int] {range(0, row)}).append(
+                        list::collect[Int] {range(row + 1, grid.height)})
+                       .map {y => grid.get(col, y)}
+
+  val mytest = [(col, row - 1), (col + 1, row - 1), (col + 1, row),
+                    (col + 1, row + 1), (col, row + 1), (col - 1, row + 1),
+                    (col - 1, row), (col - 1, row - 1)]
+
+  surr_cells.append(horizontal_cells).append(vertical_cells).all {x => not(isQueenCell(x))} // if any queen cell is nearby, dismiss
+}
+
+
 def placeRegions(grid: Gamegrid[Cell]): Gamegrid[Cell] / {} = {
   val size = grid.width
+  var populated_grid = grid
 
   // Mapping each region to its own column
   var available_columns: List[Int] = build(size) {x => x} // each region must have its queen in one unique column
   val used_regions = REGIONS.take(size)
-
-  var populated_grid = grid // TODO: necessarry?
 
   minstd(timestamp()) {
     used_regions.foreach[Region] { reg =>
@@ -77,6 +111,54 @@ def show_board(b: Gamegrid[Cell]): String = {
 }
 
 def main() = {
-  var b = generateGame(5)
-  println(show_board(b))
+    var board = Gamegrid(3, 3, [Cell(Queen(), Region(0, "\u001b[31m")), EMPTY_CELL, EMPTY_CELL,
+                                EMPTY_CELL, EMPTY_CELL, EMPTY_CELL,
+                                EMPTY_CELL, EMPTY_CELL, EMPTY_CELL])
+    println(board.isValidQueenPlacement(0, 2))
+
+    with on[OutOfBounds].panic;
+    println(isQueenCell(board.get(0, 0)))
+}
+
+def testSuite(): Bool = suite("games/queens") {
+
+  test("isQueen") {
+    assertTrue(isQueenCell(Cell(Queen(), Region(0, "\u001b[31m"))))
+  }
+
+  test("isNotQueen") {
+    assertFalse(isQueenCell(Cell(Empty(), Region(0, "\u001b[31m"))))
+  }
+
+  test("isNotQueen2") {
+    assertFalse(isQueenCell(Cell(Crossed(), Region(0, "\u001b[31m"))))
+  }
+
+  test("validQueenPlacement") {
+    var board = Gamegrid(3, 3, [Cell(Queen(), Region(0, "\u001b[31m")), EMPTY_CELL, EMPTY_CELL,
+                                EMPTY_CELL, EMPTY_CELL, EMPTY_CELL,
+                                EMPTY_CELL, EMPTY_CELL, EMPTY_CELL])
+    assertTrue(board.isValidQueenPlacement(2, 2))
+  }
+
+  test("invalidQueenPlacementVert") {
+    var board = Gamegrid(3, 3, [Cell(Queen(), Region(0, "\u001b[31m")), EMPTY_CELL, EMPTY_CELL,
+                                EMPTY_CELL, EMPTY_CELL, EMPTY_CELL,
+                                EMPTY_CELL, EMPTY_CELL, EMPTY_CELL])
+    assertFalse(board.isValidQueenPlacement(0, 2))
+  }
+
+  test("invalidQueenPlacementHorizontal") {
+    var board = Gamegrid(3, 3, [Cell(Queen(), Region(0, "\u001b[31m")), EMPTY_CELL, EMPTY_CELL,
+                                EMPTY_CELL, EMPTY_CELL, EMPTY_CELL,
+                                EMPTY_CELL, EMPTY_CELL, EMPTY_CELL])
+    assertFalse(board.isValidQueenPlacement(2, 0))
+  }
+
+  test("invalidQueenPlacementDiag") {
+    var board = Gamegrid(3, 3, [Cell(Queen(), Region(0, "\u001b[31m")), EMPTY_CELL, EMPTY_CELL,
+                                EMPTY_CELL, EMPTY_CELL, EMPTY_CELL,
+                                EMPTY_CELL, EMPTY_CELL, EMPTY_CELL])
+    assertFalse(board.isValidQueenPlacement(1, 1))
+  }
 }
