@@ -66,6 +66,11 @@ def show(grid: Gamegrid[String]): String / {} = {
 }
 
 
+def map[A, B](grid: Gamegrid[A]) {f: A => B}: Gamegrid[B] = {
+  Gamegrid(grid.width, grid.height, grid.grid.map {f})
+}
+
+
 def testSuite(): Bool = suite("util/gamegrid") {
 
   test("init") {
@@ -81,6 +86,30 @@ def testSuite(): Bool = suite("util/gamegrid") {
   test("initAscending") {
     assertEqual(initWith(2,3) {t => coordsToIndex(t.first, t.second, 2)},
                 Gamegrid(2,3,[0, 1, 2, 3, 4, 5]))
+  }
+
+  test("set1") {
+    with on[OutOfBounds].panic;
+    assertEqual(init(2,3,"O").set(0, 1, "X"),
+                Gamegrid(2,3,["O", "O", "X", "O", "O", "O"]))
+  }
+
+  test("set2") {
+    with on[OutOfBounds].panic;
+    assertEqual(init(2,3,"O").set(1, 0, "X"),
+                Gamegrid(2,3,["O", "X", "O", "O", "O", "O"]))
+  }
+
+  test("set3") {
+    with on[OutOfBounds].panic;
+    assertEqual(init(3,3,"O").set(0, 2, "X"),
+                Gamegrid(3,3,["O", "O", "O", "O", "O", "O", "X", "O", "O"]))
+  }
+
+  test("map") {
+    val chessboard = initWith(2,3) {t => if(coordsToIndex(t.first, t.second, 2).mod(2) == 0){"O"} else {"X"}}
+    assertEqual(chessboard.map {x => if (x == "O") {"X"} else {"O"}},
+                Gamegrid(2,3,["X", "O", "X", "O", "X", "O"]))
   }
 
   test("show") {
