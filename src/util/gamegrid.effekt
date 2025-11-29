@@ -1,8 +1,8 @@
-module util/gamegrid
+module src/util/gamegrid
 
 import test
 
-
+// Grid of values, defined top left to bottom right
 record Gamegrid[A](width: Int, height: Int, grid:List[A])
 
 def coordsToIndex(x: Int, y: Int, width: Int): Int = y * width + x
@@ -18,6 +18,7 @@ def get[A](grid: Gamegrid[A], x: Int, y: Int): A / Exception[OutOfBounds] = {
   grid.grid.get(index)
 }
 
+// Initialize Gamegrid with one value
 def init[A](width: Int, height: Int, a: A): Gamegrid[A] / {} = {
   var grid: List[A] = []
   repeat(width * height) {
@@ -26,6 +27,7 @@ def init[A](width: Int, height: Int, a: A): Gamegrid[A] / {} = {
   Gamegrid(width, height, grid)
 }
 
+// Initialize Gamegrid with individual values
 def initWith[A](width: Int, height: Int) {f: Tuple2[Int, Int] => A}: Gamegrid[A] / {} = {
   var grid: List[A] = []
   var index_x = 0
@@ -57,7 +59,7 @@ def show(grid: Gamegrid[String]): String / {} = {
       index = 0
     }
 
-    line = line ++ a
+    line = line ++ a ++ " " // TODO: This might be wrong
     index = index + 1
   }
   line
@@ -83,6 +85,6 @@ def testSuite(): Bool = suite("util/gamegrid") {
 
   test("show") {
     assertEqual(show(initWith(3,3) {t => if(coordsToIndex(t.first, t.second, 3).mod(2) == 0){"O"} else {"X"}}),
-                "OXO\nXOX\nOXO")
+                "O X O \nX O X \nO X O ")
   }
 }
