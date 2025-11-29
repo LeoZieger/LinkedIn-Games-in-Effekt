@@ -1,0 +1,71 @@
+module src/games/queens
+
+import src/util/gamegrid
+import tty
+import random
+
+type Status {
+  Queen();
+  Empty();
+  Crossed();
+}
+
+def show(s: Status): String / {} = {
+  s match {
+    case Queen() => "♕"
+    case Empty() => "O"
+    case Crossed() => "X"
+  }
+}
+
+record Cell(status: Status, reg: Region)
+
+record Region(id: Int, color: String)
+
+val REGIONS: List[Region] = [Region(0, "\u001b[31m"),
+                             Region(1, "\u001b[32m"),
+                             Region(2, "\u001b[33m"),
+                             Region(3, "\u001b[34m"),
+                             Region(4, "\u001b[35m"),
+                             Region(5, "\u001b[36m")
+                             ]
+
+def placeRegions(grid: Gamegrid[Cell]): Gamegrid[Cell] / {} = {
+  val size = grid.width
+
+  // Mapping each region to its own column
+  var available_columns: List[Int] = build(size) {x => x} // each region must have its queen in one unique column
+  val used_regions = REGIONS.take(size)
+
+  var populated_grid = grid // TODO: necessarry?
+
+  used_regions.foreach[Region] { reg =>
+    // with minstd;
+    minstd(1234) { // TODO: Use real seed
+      val rand_c = randomInt32()
+      val rand_r = randomInt32()
+
+      // Random column
+      val col = rand_c.mod(available_columns.size())
+
+      // Temp random row
+      val row = rand_r.mod(available_columns.size())
+
+      val cell = Cell(Queen(), reg) // Queen-Cell with current region
+      populated_grid = populated_grid.set(row, col, cell)
+    }
+  }
+  <>
+}
+
+def generateGame(size: Int) = {
+  val num_regions = size // this is trivial
+  var board = gamegrid::init(size, size, "\u001b[31m" ++ "O" ++ Escape::RESET)
+  board
+}
+
+
+def main() = {
+  var b = generateGame(5)
+  println(show(b))
+}
