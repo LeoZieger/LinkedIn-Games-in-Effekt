@@ -6,6 +6,7 @@ import test
 record Gamegrid[A](width: Int, height: Int, grid:List[A])
 
 def coordsToIndex(x: Int, y: Int, width: Int): Int = y * width + x
+def indexToCoords(i: Int, width: Int): (Int, Int) / {} = (i.mod(width), i / width)
 
 def set[A](grid: Gamegrid[A], x: Int, y: Int, a: A): Gamegrid[A] / {} = {
   with on[OutOfBounds].panic; // TODO: Maybe propagate
@@ -68,6 +69,13 @@ def map[A, B](grid: Gamegrid[A]) {f: A => B}: Gamegrid[B] = {
   Gamegrid(grid.width, grid.height, grid.grid.map {f})
 }
 
+def mapWithIndex[A, B](grid: Gamegrid[A]) {f: (Int, Int, A) => B}: Gamegrid[B] / {} = {
+  val new_grid = grid.grid.list::mapWithIndex[A, B]{(i, a) =>
+                                                      val t = indexToCoords(i, grid.width) // transform index to coords
+                                                      f(t.first, t.second, a) // and supply to coord-based function
+                                                    }
+  Gamegrid(grid.width, grid.height, new_grid)
+}
 
 def testSuite(): Bool = suite("util/gamegrid") {
 
@@ -101,10 +109,26 @@ def testSuite(): Bool = suite("util/gamegrid") {
                 Gamegrid(3,3,["O", "O", "O", "O", "O", "O", "X", "O", "O"]))
   }
 
+  test("coordsToIndex") {
+    assertEqual(coordsToIndex(1, 2, 4),
+                9)
+  }
+
+  test("indexToCoords") {
+    assertEqual(indexToCoords(9, 4),
+                (1,2))
+  }
+
   test("map") {
     val chessboard = initWith(2,3) {t => if(coordsToIndex(t.first, t.second, 2).mod(2) == 0){"O"} else {"X"}}
     assertEqual(chessboard.map {x => if (x == "O") {"X"} else {"O"}},
                 Gamegrid(2,3,["X", "O", "X", "O", "X", "O"]))
+  }
+
+  test("mapWithIndex") {
+    val grid = init(2, 3, "")
+    assertEqual(grid.mapWithIndex {(x, y, a) => if (y == 0 || y == 2) {"X"} else {"O"}},
+                Gamegrid(2,3,["X", "X", "O", "O", "X", "X"]))
   }
 
   test("show") {
