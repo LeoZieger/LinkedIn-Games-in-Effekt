@@ -42,13 +42,12 @@ def isQueenCell(c: Cell): Bool / {} = {
   }}
 
 def isValidQueenPlacement(grid: Gamegrid[Cell], col: Int, row: Int): Bool / {} = {
-  with on[OutOfBounds].panic;
   // Checking surrounding 8 cells if they already contain a queen
   val surr_cells = [(col, row - 1), (col + 1, row - 1), (col + 1, row),
                     (col + 1, row + 1), (col, row + 1), (col - 1, row + 1),
                     (col - 1, row), (col - 1, row - 1)] // all 8 adjacent cells
-                    .filter {t => (t.first > 0 && t.first < grid.width &&
-                                   t.second > 0 || t.second < grid.height)} // filter out overlaps
+                    .filter {t => (t.first >= 0 && t.first < grid.width &&
+                                   t.second >= 0 && t.second < grid.height)} // filter out overlaps
                     .map {t => grid.get(t.first, t.second)}
 
   // Checking all cells in the same row
@@ -60,10 +59,6 @@ def isValidQueenPlacement(grid: Gamegrid[Cell], col: Int, row: Int): Bool / {} =
   val vertical_cells = (list::collect[Int] {range(0, row)}).append(
                         list::collect[Int] {range(row + 1, grid.height)})
                        .map {y => grid.get(col, y)}
-
-  val mytest = [(col, row - 1), (col + 1, row - 1), (col + 1, row),
-                    (col + 1, row + 1), (col, row + 1), (col - 1, row + 1),
-                    (col - 1, row), (col - 1, row - 1)]
 
   surr_cells.append(horizontal_cells).append(vertical_cells).all {x => not(isQueenCell(x))} // if any queen cell is nearby, dismiss
 }
@@ -87,7 +82,6 @@ def placeRegions(grid: Gamegrid[Cell]): Gamegrid[Cell] / {} = {
 
       val cell = Cell(Queen(), reg) // Queen-Cell with current region
 
-      with on[OutOfBounds].panic; // should not happen
       populated_grid = populated_grid.set(col, row, cell)
 
       available_columns = available_columns.deleteAt(col_index) // removing column the queen was placed at
@@ -116,7 +110,6 @@ def main() = {
                                 EMPTY_CELL, EMPTY_CELL, EMPTY_CELL])
     println(board.isValidQueenPlacement(0, 2))
 
-    with on[OutOfBounds].panic;
     println(isQueenCell(board.get(0, 0)))
 }
 

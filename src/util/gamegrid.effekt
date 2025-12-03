@@ -7,13 +7,15 @@ record Gamegrid[A](width: Int, height: Int, grid:List[A])
 
 def coordsToIndex(x: Int, y: Int, width: Int): Int = y * width + x
 
-def set[A](grid: Gamegrid[A], x: Int, y: Int, a: A): Gamegrid[A] / Exception[OutOfBounds] = {
+def set[A](grid: Gamegrid[A], x: Int, y: Int, a: A): Gamegrid[A] / {} = {
+  with on[OutOfBounds].panic; // TODO: Maybe propagate
   val index = coordsToIndex(x, y, grid.width)
   val new_grid: List[A] = grid.grid.modifyAt(index) {a_ => a}
   Gamegrid(grid.width, grid.height, new_grid)
 }
 
-def get[A](grid: Gamegrid[A], x: Int, y: Int): A / Exception[OutOfBounds] = {
+def get[A](grid: Gamegrid[A], x: Int, y: Int): A / {} = {
+  with on[OutOfBounds].panic; // TODO: Maybe propagate
   val index = coordsToIndex(x, y, grid.width)
   grid.grid.get(index)
 }
@@ -85,19 +87,16 @@ def testSuite(): Bool = suite("util/gamegrid") {
   }
 
   test("set1") {
-    with on[OutOfBounds].panic;
     assertEqual(init(2,3,"O").set(0, 1, "X"),
                 Gamegrid(2,3,["O", "O", "X", "O", "O", "O"]))
   }
 
   test("set2") {
-    with on[OutOfBounds].panic;
     assertEqual(init(2,3,"O").set(1, 0, "X"),
                 Gamegrid(2,3,["O", "X", "O", "O", "O", "O"]))
   }
 
   test("set3") {
-    with on[OutOfBounds].panic;
     assertEqual(init(3,3,"O").set(0, 2, "X"),
                 Gamegrid(3,3,["O", "O", "O", "O", "O", "O", "X", "O", "O"]))
   }
