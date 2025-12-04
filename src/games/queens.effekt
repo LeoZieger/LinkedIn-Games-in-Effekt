@@ -33,7 +33,7 @@ val REGIONS: List[Region] = [Region(0, "\u001b[31m"),
                              ]
 
 record Cell(status: Status, reg: Region)
-val EMPTY_CELL = Cell(Empty(), Region(-1, "\u001b[37m")) // TODO: Fix this
+val DEFAULT_CELL = Cell(Empty(), Region(-1, "\u001b[37m")) // TODO: Fix this
 
 def isQueenCell(c: Cell): Bool / {} = {
   c.status match {
@@ -41,13 +41,17 @@ def isQueenCell(c: Cell): Bool / {} = {
     case _ => false
   }}
 
+def isDefaultCell(c: Cell): Bool / {} = {
+  c.reg.id == -1
+}
+
 type Board = Gamegrid[Cell]
 
 def isValidQueenPlacement(board: Board, col: Int, row: Int): Bool / {} = {
   // Checking surrounding 8 cells if they already contain a queen
   val surr_cells = [(col, row - 1), (col + 1, row - 1), (col + 1, row),
                     (col + 1, row + 1), (col, row + 1), (col - 1, row + 1),
-                    (col - 1, row), (col - 1, row - 1)] // all 8 adjacent cells
+                    (col - 1, row), (col - 1, row - 1)] // all 8 adjacent cells TODO: Use surroundingCells8(...)
                     .filter {t => (t.first >= 0 && t.first < board.width &&
                                    t.second >= 0 && t.second < board.height)} // filter out overlaps
                     .map {t => board.get(t.first, t.second)}
@@ -119,13 +123,52 @@ def placeNQueens(board: Board): List[Board] / {} = {
   }
 }
 
+// TODO: Move to gamegrid util
+def surroundingCells4(board: Board , x: Int, y: Int): List[Cell] / {} = {
+  [(x, y - 1), (x + 1, y), (x, y + 1), (x - 1, y)]
+  .filter {t => (t.first >= 0 && t.first < board.width &&
+                 t.second >= 0 && t.second < board.height)} // filter out overlaps
+  .map {t => board.get(t.first, t.second)}
+}
+
+// TODO: Move to gamegrid util
+def surroundingCells4WithIndices(board: Board , x: Int, y: Int): List[(Int, Int, Cell)] / {} = {
+  [(x, y - 1), (x + 1, y), (x, y + 1), (x - 1, y)]
+  .filter {t => (t.first >= 0 && t.first < board.width &&
+                 t.second >= 0 && t.second < board.height)} // filter out overlaps
+  .map {t => (t.first, t.second, board.get(t.first, t.second))}
+}
+
 def expandRegions(board: Board): Board / {} = {
-  board
+  type Expansion = Tuple3[Int, Int, Region] // Coordinates and what the target Region would be (if expended)
+  var new_board = board
+
+  exhaustively {
+    var spreadableCells = new_board.mapWithIndex {(x, y, c) => (x, y, c)}
+                                   .grid.filter {t => t.third.isDefaultCell.not() &&
+                                                      new_board.surroundingCells4(t.first, t.second).any {isDefaultCell}} // can only expand if there are any free cells
+
+    if(spreadableCells.isEmpty()) {
+      do stop()
+    }
+
+    var expansions: List[Expansion] = spreadableCells.flatMap {t => new_board.surroundingCells4WithIndices(t.first, t.second)
+                                                                             .filter {t_ => t_.third.isDefaultCell}
+                                                                             .map {t_ => (t_.first, t_.second, t.third.reg)} }
+
+    minstd(timestamp()) { // TODO: Use with here?
+      with on[OutOfBounds].panic();
+      val expansion = expansions.get(randomInt(0, expansions.size - 1))
+
+      new_board = new_board.set(expansion.first, expansion.second, Cell(Empty(), expansion.third))
+    }
+  }
+
+  new_board
 }
 
 def generateGame(size: Int): Board / {} = {
-  val num_regions = size // this is trivial
-  var board = gamegrid::init(size, size, EMPTY_CELL)
+  var board = gamegrid::init(size, size, DEFAULT_CELL)
 
   // Placing Queens on board
   var validBoards = board.placeNQueens()
@@ -146,7 +189,7 @@ def show_board(b: Board): String = {
 }
 
 def main() = {
-  val b = generateGame(7)
+  val b = generateGame(6)
   println(show_board(b))
 }
 
@@ -165,30 +208,30 @@ def testSuite(): Bool = suite("games/queens") {
   }
 
   test("validQueenPlacement") {
-    var board = Gamegrid(3, 3, [Cell(Queen(), Region(0, "\u001b[31m")), EMPTY_CELL, EMPTY_CELL,
-                                EMPTY_CELL, EMPTY_CELL, EMPTY_CELL,
-                                EMPTY_CELL, EMPTY_CELL, EMPTY_CELL])
+    var board = Gamegrid(3, 3, [Cell(Queen(), Region(0, "\u001b[31m")), DEFAULT_CELL, DEFAULT_CELL,
+                                DEFAULT_CELL, DEFAULT_CELL, DEFAULT_CELL,
+                                DEFAULT_CELL, DEFAULT_CELL, DEFAULT_CELL])
     assertTrue(board.isValidQueenPlacement(2, 2))
   }
 
   test("invalidQueenPlacementVert") {
-    var board = Gamegrid(3, 3, [Cell(Queen(), Region(0, "\u001b[31m")), EMPTY_CELL, EMPTY_CELL,
-                                EMPTY_CELL, EMPTY_CELL, EMPTY_CELL,
-                                EMPTY_CELL, EMPTY_CELL, EMPTY_CELL])
+    var board = Gamegrid(3, 3, [Cell(Queen(), Region(0, "\u001b[31m")), DEFAULT_CELL, DEFAULT_CELL,
+                                DEFAULT_CELL, DEFAULT_CELL, DEFAULT_CELL,
+                                DEFAULT_CELL, DEFAULT_CELL, DEFAULT_CELL])
     assertFalse(board.isValidQueenPlacement(0, 2))
   }
 
   test("invalidQueenPlacementHorizontal") {
-    var board = Gamegrid(3, 3, [Cell(Queen(), Region(0, "\u001b[31m")), EMPTY_CELL, EMPTY_CELL,
-                                EMPTY_CELL, EMPTY_CELL, EMPTY_CELL,
-                                EMPTY_CELL, EMPTY_CELL, EMPTY_CELL])
+    var board = Gamegrid(3, 3, [Cell(Queen(), Region(0, "\u001b[31m")), DEFAULT_CELL, DEFAULT_CELL,
+                                DEFAULT_CELL, DEFAULT_CELL, DEFAULT_CELL,
+                                DEFAULT_CELL, DEFAULT_CELL, DEFAULT_CELL])
     assertFalse(board.isValidQueenPlacement(2, 0))
   }
 
   test("invalidQueenPlacementDiag") {
-    var board = Gamegrid(3, 3, [Cell(Queen(), Region(0, "\u001b[31m")), EMPTY_CELL, EMPTY_CELL,
-                                EMPTY_CELL, EMPTY_CELL, EMPTY_CELL,
-                                EMPTY_CELL, EMPTY_CELL, EMPTY_CELL])
+    var board = Gamegrid(3, 3, [Cell(Queen(), Region(0, "\u001b[31m")), DEFAULT_CELL, DEFAULT_CELL,
+                                DEFAULT_CELL, DEFAULT_CELL, DEFAULT_CELL,
+                                DEFAULT_CELL, DEFAULT_CELL, DEFAULT_CELL])
     assertFalse(board.isValidQueenPlacement(1, 1))
   }
 }
