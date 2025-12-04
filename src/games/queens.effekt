@@ -1,6 +1,8 @@
 module src/games/queens
 
 import src/util/gamegrid
+import src/util/randomUtil
+
 import tty
 import random
 import bench
@@ -49,12 +51,7 @@ type Board = Gamegrid[Cell]
 
 def isValidQueenPlacement(board: Board, col: Int, row: Int): Bool / {} = {
   // Checking surrounding 8 cells if they already contain a queen
-  val surr_cells = [(col, row - 1), (col + 1, row - 1), (col + 1, row),
-                    (col + 1, row + 1), (col, row + 1), (col - 1, row + 1),
-                    (col - 1, row), (col - 1, row - 1)] // all 8 adjacent cells TODO: Use surroundingCells8(...)
-                    .filter {t => (t.first >= 0 && t.first < board.width &&
-                                   t.second >= 0 && t.second < board.height)} // filter out overlaps
-                    .map {t => board.get(t.first, t.second)}
+  val surr_cells = board.surroundingCells8(col, row)
 
   // Checking all cells in the same row
   val horizontal_cells = (list::collect[Int] {range(0, col)}).append(
@@ -123,23 +120,8 @@ def placeNQueens(board: Board): List[Board] / {} = {
   }
 }
 
-// TODO: Move to gamegrid util
-def surroundingCells4(board: Board , x: Int, y: Int): List[Cell] / {} = {
-  [(x, y - 1), (x + 1, y), (x, y + 1), (x - 1, y)]
-  .filter {t => (t.first >= 0 && t.first < board.width &&
-                 t.second >= 0 && t.second < board.height)} // filter out overlaps
-  .map {t => board.get(t.first, t.second)}
-}
 
-// TODO: Move to gamegrid util
-def surroundingCells4WithIndices(board: Board , x: Int, y: Int): List[(Int, Int, Cell)] / {} = {
-  [(x, y - 1), (x + 1, y), (x, y + 1), (x - 1, y)]
-  .filter {t => (t.first >= 0 && t.first < board.width &&
-                 t.second >= 0 && t.second < board.height)} // filter out overlaps
-  .map {t => (t.first, t.second, board.get(t.first, t.second))}
-}
-
-def expandRegions(board: Board): Board / {} = {
+def expandRegions(board: Board): Board / {random} = {
   type Expansion = Tuple3[Int, Int, Region] // Coordinates and what the target Region would be (if expended)
   var new_board = board
 
@@ -156,12 +138,10 @@ def expandRegions(board: Board): Board / {} = {
                                                                              .filter {t_ => t_.third.isDefaultCell}
                                                                              .map {t_ => (t_.first, t_.second, t.third.reg)} }
 
-    minstd(timestamp()) { // TODO: Use with here?
-      with on[OutOfBounds].panic();
-      val expansion = expansions.get(randomInt(0, expansions.size - 1))
+    with on[OutOfBounds].panic();
+    val expansion = expansions.get(randomInt(0, expansions.size - 1))
 
-      new_board = new_board.set(expansion.first, expansion.second, Cell(Empty(), expansion.third))
-    }
+    new_board = new_board.set(expansion.first, expansion.second, Cell(Empty(), expansion.third))
   }
 
   new_board
@@ -170,15 +150,13 @@ def expandRegions(board: Board): Board / {} = {
 def generateGame(size: Int): Board / {} = {
   var board = gamegrid::init(size, size, DEFAULT_CELL)
 
-  // Placing Queens on board
-  var validBoards = board.placeNQueens()
-  minstd(timestamp()) { // TODO: Use with here?
-    with on[OutOfBounds].panic();
-    board = validBoards.get(randomInt(0, validBoards.size - 1))
+  minstd(timestamp()) {
+    var validBoards = board.placeNQueens()
+
+    board = pickRandomElement(validBoards)
+    board = board.expandRegions()
   }
 
-  // Expanding Regions
-  board = board.expandRegions()
   board
 }
 
