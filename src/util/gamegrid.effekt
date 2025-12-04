@@ -77,6 +77,47 @@ def mapWithIndex[A, B](grid: Gamegrid[A]) {f: (Int, Int, A) => B}: Gamegrid[B] /
   Gamegrid(grid.width, grid.height, new_grid)
 }
 
+
+def isInBound[A](grid: Gamegrid[A], x: Int, y: Int): Bool / {} = {
+  (x >= 0 && x < grid.width &&
+   y>= 0 && y < grid.height)
+}
+
+
+def surroundingCells4[A](grid: Gamegrid[A] , x: Int, y: Int): List[A] / {} = {
+  [(x, y - 1), (x + 1, y), (x, y + 1), (x - 1, y)]
+  .filter {t => grid.isInBound(t.first, t.second)} // filter out overlaps
+  .map {t => grid.get(t.first, t.second)}
+}
+
+
+def surroundingCells4WithIndices[A](grid: Gamegrid[A] , x: Int, y: Int): List[(Int, Int, A)] / {} = {
+  [(x, y - 1), (x + 1, y), (x, y + 1), (x - 1, y)]
+  .filter {t => grid.isInBound(t.first, t.second)} // filter out overlaps
+  .map {t => (t.first, t.second, grid.get(t.first, t.second))}
+}
+
+
+def surroundingCells8[A](grid: Gamegrid[A] , x: Int, y: Int): List[A] / {} = {
+  [(x, y - 1), (x + 1, y - 1),
+   (x + 1, y), (x + 1, y + 1),
+   (x, y + 1), (x - 1, y + 1),
+   (x - 1, y), (x - 1, y - 1)]
+  .filter {t => grid.isInBound(t.first, t.second)} // filter out overlaps
+  .map {t => grid.get(t.first, t.second)}
+}
+
+
+def surroundingCells8WithIndices[A](grid: Gamegrid[A] , x: Int, y: Int): List[(Int, Int, A)] / {} = {
+  [(x, y - 1), (x + 1, y - 1),
+   (x + 1, y), (x + 1, y + 1),
+   (x, y + 1), (x - 1, y + 1),
+   (x - 1, y), (x - 1, y - 1)]
+  .filter {t => grid.isInBound(t.first, t.second)} // filter out overlaps
+  .map {t => (t.first, t.second, grid.get(t.first, t.second))}
+}
+
+
 def testSuite(): Bool = suite("util/gamegrid") {
 
   test("init") {

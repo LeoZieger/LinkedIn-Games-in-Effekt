@@ -1,0 +1,12 @@
+module src/util/randomUtil
+
+import random
+
+def pickRandomElement[A](lst: List[A]): A / {random} = {
+    with on[OutOfBounds].panic();
+    lst.get(randomInt(0, lst.size - 1))
+}
+
+def shuffle[A](lst: List[A]): List[A] / {random} = {
+  <>
+}
