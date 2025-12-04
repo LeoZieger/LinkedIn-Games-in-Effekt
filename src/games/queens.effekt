@@ -41,76 +41,113 @@ def isQueenCell(c: Cell): Bool / {} = {
     case _ => false
   }}
 
-def isValidQueenPlacement(grid: Gamegrid[Cell], col: Int, row: Int): Bool / {} = {
+type Board = Gamegrid[Cell]
+
+def isValidQueenPlacement(board: Board, col: Int, row: Int): Bool / {} = {
   // Checking surrounding 8 cells if they already contain a queen
   val surr_cells = [(col, row - 1), (col + 1, row - 1), (col + 1, row),
                     (col + 1, row + 1), (col, row + 1), (col - 1, row + 1),
                     (col - 1, row), (col - 1, row - 1)] // all 8 adjacent cells
-                    .filter {t => (t.first >= 0 && t.first < grid.width &&
-                                   t.second >= 0 && t.second < grid.height)} // filter out overlaps
-                    .map {t => grid.get(t.first, t.second)}
+                    .filter {t => (t.first >= 0 && t.first < board.width &&
+                                   t.second >= 0 && t.second < board.height)} // filter out overlaps
+                    .map {t => board.get(t.first, t.second)}
 
   // Checking all cells in the same row
   val horizontal_cells = (list::collect[Int] {range(0, col)}).append(
-                          list::collect[Int] {range(col + 1, grid.width)})
-                         .map {x => grid.get(x, row)}
+                          list::collect[Int] {range(col + 1, board.width)})
+                         .map {x => board.get(x, row)}
   
   // Checking all cells in the same column
   val vertical_cells = (list::collect[Int] {range(0, row)}).append(
-                        list::collect[Int] {range(row + 1, grid.height)})
-                       .map {y => grid.get(col, y)}
+                        list::collect[Int] {range(row + 1, board.height)})
+                       .map {y => board.get(col, y)}
 
   surr_cells.append(horizontal_cells).append(vertical_cells).all {x => not(isQueenCell(x))} // if any queen cell is nearby, dismiss
 }
 
-
-def placeRegions(grid: Gamegrid[Cell]): Gamegrid[Cell] / {} = {
-  val size = grid.width
-  var populated_grid = grid
-
-  // Mapping each region to its own column
-  var available_columns: List[Int] = build(size) {x => x} // each region must have its queen in one unique column
-  val used_regions = REGIONS.take(size)
-
-  minstd(timestamp()) {
-    used_regions.foreach[Region] { reg =>
-      val col_index = randomInt(0, available_columns.size() - 1)
-
-      with on[OutOfBounds].panic;
-      val col = available_columns.get(col_index)
-      val row = randomInt(0, size - 1)
-
-      val cell = Cell(Queen(), reg) // Queen-Cell with current region
-
-      populated_grid = populated_grid.set(col, row, cell)
-
-      available_columns = available_columns.deleteAt(col_index) // removing column the queen was placed at
-    }
-  }
-  populated_grid
+// Checks if all queens that are placed are placed valid
+def isValidBoard(board: Board): Bool / {} = {
+  board.mapWithIndex[Cell, Bool] {(x, y, c) =>
+                                   c.isQueenCell && board.isValidQueenPlacement(x, y)}
+       .grid.all {b => b} // TODO: Fix
 }
 
-def generateGame(size: Int): Gamegrid[Cell] / {} = {
-  val num_regions = size // this is trivial
-  var board = gamegrid::init(size, size, EMPTY_CELL)
 
-  board = board.placeRegions()
+interface Search {
+  def pickRow(width: Int): Int
+  def fail(): Nothing
+}
+
+// TODO: Verify that it works
+// TODO: Shuffle regions around somehow
+def placeNQueens(board: Board): List[Board] / {} = {
+  try {
+    var region_index = 0
+    val columns = list::build(board.width) {x => x}
+    var new_board = board
+
+    columns.foreach {col =>
+      var row = do pickRow(board.width)
+
+      with on[OutOfBounds].panic();
+      val reg = REGIONS.get(region_index)
+
+      val cell = Cell(Queen(), reg)
+
+
+      if(new_board.isValidQueenPlacement(col, row)) {
+        new_board = new_board.set(col, row, cell)
+        region_index = region_index + 1
+      }
+      else {
+        do fail()
+      }
+    }
+
+    [new_board]
+  } with Search {
+      def pickRow(width) = {
+        var boards: List[Board] = []
+
+        val rows = list::build(board.height) {y => y}
+        rows.foreach {row =>
+          boards = resume(row).append(boards)
+        }
+        boards
+      }
+      def fail() = {[]}
+  }
+}
+
+def expandRegions(board: Board): Board / {} = {
   board
 }
 
-def show_board(b: Gamegrid[Cell]): String = {
+def generateGame(size: Int): Board / {} = {
+  val num_regions = size // this is trivial
+  var board = gamegrid::init(size, size, EMPTY_CELL)
+
+  // Placing Queens on board
+  var validBoards = board.placeNQueens()
+  minstd(timestamp()) { // TODO: Use with here?
+    with on[OutOfBounds].panic();
+    board = validBoards.get(randomInt(0, validBoards.size - 1))
+  }
+
+  // Expanding Regions
+  board = board.expandRegions()
+  board
+}
+
+def show_board(b: Board): String = {
   show(
     b.map[Cell, String]{c => c.reg.color ++ show(c.status) ++ Escape::RESET}
   )
 }
 
 def main() = {
-    var board = Gamegrid(3, 3, [Cell(Queen(), Region(0, "\u001b[31m")), EMPTY_CELL, EMPTY_CELL,
-                                EMPTY_CELL, EMPTY_CELL, EMPTY_CELL,
-                                EMPTY_CELL, EMPTY_CELL, EMPTY_CELL])
-    println(board.isValidQueenPlacement(0, 2))
-
-    println(isQueenCell(board.get(0, 0)))
+  val b = generateGame(7)
+  println(show_board(b))
 }
 
 def testSuite(): Bool = suite("games/queens") {
