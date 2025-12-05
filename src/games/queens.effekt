@@ -1,6 +1,7 @@
 module src/games/queens
 
 import src/util/gamegrid
+import src/util/vec2i
 import src/util/randomUtil
 import src/util/gamestate
 
@@ -50,19 +51,19 @@ def isDefaultCell(c: Cell): Bool / {} = {
 
 type Board = Gamegrid[Cell]
 
-def isValidQueenPlacement(board: Board, col: Int, row: Int): Bool / {} = {
+def isValidQueenPlacement(board: Board, v: Vec2i): Bool / {} = {
   // Checking surrounding 8 cells if they already contain a queen
-  val surr_cells = board.surroundingCells8(col, row)
+  val surr_cells = board.surroundingCells8(v)
 
   // Checking all cells in the same row
-  val horizontal_cells = (list::collect[Int] {range(0, col)}).append(
-                          list::collect[Int] {range(col + 1, board.width)})
-                         .map {x => board.get(x, row)}
+  val horizontal_cells = (list::collect[Int] {range(0, v.x)}).append(
+                          list::collect[Int] {range(v.x + 1, board.width)})
+                         .map {x => board.get((x, v.y))}
   
   // Checking all cells in the same column
-  val vertical_cells = (list::collect[Int] {range(0, row)}).append(
-                        list::collect[Int] {range(row + 1, board.height)})
-                       .map {y => board.get(col, y)}
+  val vertical_cells = (list::collect[Int] {range(0, v.y)}).append(
+                        list::collect[Int] {range(v.y + 1, board.height)})
+                       .map {y => board.get((v.x, y))}
 
   surr_cells.append(horizontal_cells).append(vertical_cells).all {x => not(isQueenCell(x))} // if any queen cell is nearby, dismiss
 }
@@ -90,8 +91,8 @@ def placeNQueens(board: Board): List[Board] / {} = {
       val cell = Cell(Queen(), reg)
 
 
-      if(new_board.isValidQueenPlacement(col, row)) {
-        new_board = new_board.set(col, row, cell)
+      if(new_board.isValidQueenPlacement((col, row))) {
+        new_board = new_board.set((col, row), cell)
         region_index = region_index + 1
       }
       else {
@@ -116,26 +117,27 @@ def placeNQueens(board: Board): List[Board] / {} = {
 
 
 def expandRegions(board: Board): Board / {random} = {
-  type Expansion = Tuple3[Int, Int, Region] // Coordinates and what the target Region would be (if expended)
+  type Expansion = (Vec2i, Region) // Coordinates and what the target Region would be (if expended)
   var new_board = board
 
   exhaustively {
-    var spreadableCells = new_board.mapWithIndex {(x, y, c) => (x, y, c)}
-                                   .grid.filter {t => t.third.isDefaultCell.not() &&
-                                                      new_board.surroundingCells4(t.first, t.second).any {isDefaultCell}} // can only expand if there are any free cells
+    var spreadableCells = new_board.mapWithIndex {(v, c) => (v, c)}
+                                   .grid.filter {t => t.second.isDefaultCell.not() &&
+                                                      new_board.surroundingCells4(t.first).any {isDefaultCell}} // can only expand if there are any free cells
 
     if(spreadableCells.isEmpty()) {
       do stop()
     }
 
-    var expansions: List[Expansion] = spreadableCells.flatMap {t => new_board.surroundingCells4WithIndices(t.first, t.second)
-                                                                             .filter {t_ => t_.third.isDefaultCell}
-                                                                             .map {t_ => (t_.first, t_.second, t.third.reg)} }
+    var expansions: List[Expansion] = spreadableCells.flatMap {t => 
+                                                      new_board.surroundingCells4WithIndices(t.first)
+                                                                             .filter {t_ => t_.second.isDefaultCell}
+                                                                             .map {t_ => (t_.first, t_.second.reg)} }
 
     with on[OutOfBounds].panic();
     val expansion = expansions.get(randomInt(0, expansions.size - 1))
 
-    new_board = new_board.set(expansion.first, expansion.second, Cell(Empty(), expansion.third))
+    new_board = new_board.set(expansion.first, Cell(Empty(), expansion.second))
   }
 
   new_board
@@ -157,19 +159,18 @@ def generateGame(size: Int): Board / {} = {
 def isWinning(board: Board): Bool / {} = {
   val num_queens = board.grid.count {c => c.isQueenCell()}
 
-  val allQueensValid = board.mapWithIndex{(x, y, c) => c.isQueenCell.not() ||
-                                                       (c.isQueenCell && board.isValidQueenPlacement(x, y))}
+  val allQueensValid = board.mapWithIndex{(v, c) => c.isQueenCell.not() ||
+                                                       (c.isQueenCell && board.isValidQueenPlacement(v))}
                             .grid.all {b => b} // TODO: Fix
   (num_queens == board.width) && allQueensValid
 }
 
 def hideQueens(board: Board): Board / {} = {
-  board.mapWithIndex{(x, y, c) => if(c.isQueenCell) {Cell(Empty(), c.reg)} else {c}} // replace Queen cells with cells of same region
+  board.map{c => if(c.isQueenCell) {Cell(Empty(), c.reg)} else {c}} // replace Queen cells with cells of same region
 }
 
 def gameloop(board: Board): Unit / {Gamestate} = {
-  var cursor_x = 0
-  var cursor_y = 0
+  var cursor = (0, 0)
   var current_board = board
 
   val input_options = [
@@ -189,44 +190,42 @@ def gameloop(board: Board): Unit / {Gamestate} = {
 
     // Sending current board to console
     do updateGrid(current_board.mapWithIndex[Cell, String]
-                      {(x, y, c) => if (x == cursor_x && y == cursor_y) {Escape::BLINK ++ c.reg.color ++ show(c.status) ++ Escape::RESET}
+                      {(v, c) => if (v.x == cursor.x && v.y == cursor.y) {Escape::BLINK ++ c.reg.color ++ show(c.status) ++ Escape::RESET}
                                     else {c.reg.color ++ show(c.status) ++ Escape::RESET}
                       }
                   )
 
     // applying input of user
-    var old_cursor_x = cursor_x // < In case the new coords are out of bound
-    var old_cursor_y = cursor_y // <
+    var old_cursor = cursor // < In case the new coords are out of bound
 
     val input = do getUserInput(input_options)
 
     input match {
-      case "w" => cursor_y = cursor_y - 1
-      case "a" => cursor_x = cursor_x - 1
-      case "s" => cursor_y = cursor_y + 1
-      case "d" => cursor_x = cursor_x + 1
+      case "w" => cursor = cursor - (0,1)
+      case "a" => cursor = cursor - (1,0)
+      case "s" => cursor = cursor + (0,1)
+      case "d" => cursor = cursor + (1,0)
       case "q" => {
           // TODO: make placeQueen(x,y)
-          val current_region = current_board.get(cursor_x, cursor_y).reg
-          current_board = current_board.set(cursor_x, cursor_y, Cell(Queen(), current_region))
+          val current_region = current_board.get(cursor).reg
+          current_board = current_board.set(cursor, Cell(Queen(), current_region))
       }
       case "x" => {
           // TODO: make placeCross(x,y)
-          val current_region = current_board.get(cursor_x, cursor_y).reg
-          current_board = current_board.set(cursor_x, cursor_y, Cell(Crossed(), current_region))
+          val current_region = current_board.get(cursor).reg
+          current_board = current_board.set(cursor, Cell(Crossed(), current_region))
       }
       case "o" => {
           // TODO: make placeEmpty(x,y)
-          val current_region = current_board.get(cursor_x, cursor_y).reg
-          current_board = current_board.set(cursor_x, cursor_y, Cell(Empty(), current_region))
+          val current_region = current_board.get(cursor).reg
+          current_board = current_board.set(cursor, Cell(Empty(), current_region))
       }
       case _ => println("Invalid Input!") // TODO: Fix this
     }
 
     // Resetting cursor if cursor got out of bound TODO: Maybe fix this by not allowing moving outside?
-    if (current_board.isInBound(cursor_x, cursor_y).not()) {
-      cursor_x = old_cursor_x
-      cursor_y = old_cursor_y
+    if (current_board.isInBound(cursor).not()) {
+      cursor = old_cursor
     }
   }
 
@@ -234,11 +233,7 @@ def gameloop(board: Board): Unit / {Gamestate} = {
 }
 
 
-def main() = {
-  val b = generateGame(6).hideQueens()
-
-}
-
+// TODO: More tests about the gamegeneration
 def testSuite(): Bool = suite("games/queens") {
 
   test("isQueen") {
@@ -257,27 +252,27 @@ def testSuite(): Bool = suite("games/queens") {
     var board = Gamegrid(3, 3, [Cell(Queen(), Region(0, "\u001b[31m")), DEFAULT_CELL, DEFAULT_CELL,
                                 DEFAULT_CELL, DEFAULT_CELL, DEFAULT_CELL,
                                 DEFAULT_CELL, DEFAULT_CELL, DEFAULT_CELL])
-    assertTrue(board.isValidQueenPlacement(2, 2))
+    assertTrue(board.isValidQueenPlacement((2, 2)))
   }
 
   test("invalidQueenPlacementVert") {
     var board = Gamegrid(3, 3, [Cell(Queen(), Region(0, "\u001b[31m")), DEFAULT_CELL, DEFAULT_CELL,
                                 DEFAULT_CELL, DEFAULT_CELL, DEFAULT_CELL,
                                 DEFAULT_CELL, DEFAULT_CELL, DEFAULT_CELL])
-    assertFalse(board.isValidQueenPlacement(0, 2))
+    assertFalse(board.isValidQueenPlacement((0, 2)))
   }
 
   test("invalidQueenPlacementHorizontal") {
     var board = Gamegrid(3, 3, [Cell(Queen(), Region(0, "\u001b[31m")), DEFAULT_CELL, DEFAULT_CELL,
                                 DEFAULT_CELL, DEFAULT_CELL, DEFAULT_CELL,
                                 DEFAULT_CELL, DEFAULT_CELL, DEFAULT_CELL])
-    assertFalse(board.isValidQueenPlacement(2, 0))
+    assertFalse(board.isValidQueenPlacement((2, 0)))
   }
 
   test("invalidQueenPlacementDiag") {
     var board = Gamegrid(3, 3, [Cell(Queen(), Region(0, "\u001b[31m")), DEFAULT_CELL, DEFAULT_CELL,
                                 DEFAULT_CELL, DEFAULT_CELL, DEFAULT_CELL,
                                 DEFAULT_CELL, DEFAULT_CELL, DEFAULT_CELL])
-    assertFalse(board.isValidQueenPlacement(1, 1))
+    assertFalse(board.isValidQueenPlacement((1, 1)))
   }
 }

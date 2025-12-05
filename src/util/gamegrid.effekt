@@ -1,23 +1,24 @@
 module src/util/gamegrid
 
 import test
+import src/util/vec2i
 
 // Grid of values, defined top left to bottom right
 record Gamegrid[A](width: Int, height: Int, grid:List[A])
 
-def coordsToIndex(x: Int, y: Int, width: Int): Int = y * width + x
-def indexToCoords(i: Int, width: Int): (Int, Int) / {} = (i.mod(width), i / width)
+def coordsToIndex(v: Vec2i, width: Int): Int = v.y * width + v.x
+def indexToCoords(i: Int, width: Int): Vec2i / {} = (i.mod(width), i / width)
 
-def set[A](grid: Gamegrid[A], x: Int, y: Int, a: A): Gamegrid[A] / {} = {
+def set[A](grid: Gamegrid[A], v: Vec2i, a: A): Gamegrid[A] / {} = {
   with on[OutOfBounds].panic; // TODO: Maybe propagate
-  val index = coordsToIndex(x, y, grid.width)
+  val index = coordsToIndex((v.x, v.y), grid.width)
   val new_grid: List[A] = grid.grid.modifyAt(index) {a_ => a}
   Gamegrid(grid.width, grid.height, new_grid)
 }
 
-def get[A](grid: Gamegrid[A], x: Int, y: Int): A / {} = {
+def get[A](grid: Gamegrid[A], v: Vec2i): A / {} = {
   with on[OutOfBounds].panic; // TODO: Maybe propagate
-  val index = coordsToIndex(x, y, grid.width)
+  val index = coordsToIndex(v, grid.width)
   grid.grid.get(index)
 }
 
@@ -27,7 +28,7 @@ def init[A](width: Int, height: Int, a: A): Gamegrid[A] / {} = {
 }
 
 // Initialize Gamegrid with individual values
-def initWith[A](width: Int, height: Int) {f: Tuple2[Int, Int] => A}: Gamegrid[A] / {} = {
+def initWith[A](width: Int, height: Int) {f: Vec2i => A}: Gamegrid[A] / {} = {
   var grid: List[A] = []
   var index_x = 0
   var index_y = 0
@@ -69,52 +70,52 @@ def map[A, B](grid: Gamegrid[A]) {f: A => B}: Gamegrid[B] = {
   Gamegrid(grid.width, grid.height, grid.grid.map {f})
 }
 
-def mapWithIndex[A, B](grid: Gamegrid[A]) {f: (Int, Int, A) => B}: Gamegrid[B] / {} = {
+def mapWithIndex[A, B](grid: Gamegrid[A]) {f: (Vec2i, A) => B}: Gamegrid[B] / {} = {
   val new_grid = grid.grid.list::mapWithIndex[A, B]{(i, a) =>
-                                                      val t = indexToCoords(i, grid.width) // transform index to coords
-                                                      f(t.first, t.second, a) // and supply to coord-based function
+                                                      val v = indexToCoords(i, grid.width) // transform index to coords
+                                                      f(v, a) // and supply to coord-based function
                                                     }
   Gamegrid(grid.width, grid.height, new_grid)
 }
 
 
-def isInBound[A](grid: Gamegrid[A], x: Int, y: Int): Bool / {} = {
-  (x >= 0 && x < grid.width &&
-   y>= 0 && y < grid.height)
+def isInBound[A](grid: Gamegrid[A], v: Vec2i): Bool / {} = {
+  (v.x >= 0 && v.x < grid.width &&
+   v.y>= 0 && v.y < grid.height)
 }
 
 
-def surroundingCells4[A](grid: Gamegrid[A] , x: Int, y: Int): List[A] / {} = {
-  [(x, y - 1), (x + 1, y), (x, y + 1), (x - 1, y)]
-  .filter {t => grid.isInBound(t.first, t.second)} // filter out overlaps
-  .map {t => grid.get(t.first, t.second)}
+def surroundingCells4[A](grid: Gamegrid[A] , v: Vec2i): List[A] / {} = {
+  [(v.x, v.y - 1), (v.x + 1, v.y), (v.x, v.y + 1), (v.x - 1, v.y)]
+  .filter {v => grid.isInBound(v)} // filter out overlaps
+  .map {v => grid.get(v)}
 }
 
 
-def surroundingCells4WithIndices[A](grid: Gamegrid[A] , x: Int, y: Int): List[(Int, Int, A)] / {} = {
-  [(x, y - 1), (x + 1, y), (x, y + 1), (x - 1, y)]
-  .filter {t => grid.isInBound(t.first, t.second)} // filter out overlaps
-  .map {t => (t.first, t.second, grid.get(t.first, t.second))}
+def surroundingCells4WithIndices[A](grid: Gamegrid[A] , v: Vec2i): List[(Vec2i, A)] / {} = {
+  [(v.x, v.y - 1), (v.x + 1, v.y), (v.x, v.y + 1), (v.x - 1, v.y)]
+  .filter {v => grid.isInBound(v)} // filter out overlaps
+  .map {v => (v, grid.get(v))}
 }
 
 
-def surroundingCells8[A](grid: Gamegrid[A] , x: Int, y: Int): List[A] / {} = {
-  [(x, y - 1), (x + 1, y - 1),
-   (x + 1, y), (x + 1, y + 1),
-   (x, y + 1), (x - 1, y + 1),
-   (x - 1, y), (x - 1, y - 1)]
-  .filter {t => grid.isInBound(t.first, t.second)} // filter out overlaps
-  .map {t => grid.get(t.first, t.second)}
+def surroundingCells8[A](grid: Gamegrid[A] , v: Vec2i): List[A] / {} = {
+  [(v.x, v.y - 1), (v.x + 1, v.y - 1),
+   (v.x + 1, v.y), (v.x + 1, v.y + 1),
+   (v.x, v.y + 1), (v.x - 1, v.y + 1),
+   (v.x - 1, v.y), (v.x - 1, v.y - 1)]
+  .filter {v => grid.isInBound(v)} // filter out overlaps
+  .map {v => grid.get(v)}
 }
 
 
-def surroundingCells8WithIndices[A](grid: Gamegrid[A] , x: Int, y: Int): List[(Int, Int, A)] / {} = {
-  [(x, y - 1), (x + 1, y - 1),
-   (x + 1, y), (x + 1, y + 1),
-   (x, y + 1), (x - 1, y + 1),
-   (x - 1, y), (x - 1, y - 1)]
-  .filter {t => grid.isInBound(t.first, t.second)} // filter out overlaps
-  .map {t => (t.first, t.second, grid.get(t.first, t.second))}
+def surroundingCells8WithIndices[A](grid: Gamegrid[A] ,v: Vec2i): List[(Vec2i, A)] / {} = {
+  [(v.x, v.y - 1), (v.x + 1, v.y - 1),
+   (v.x + 1, v.y), (v.x + 1, v.y + 1),
+   (v.x, v.y + 1), (v.x - 1, v.y + 1),
+   (v.x - 1, v.y), (v.x - 1, v.y - 1)]
+  .filter {v => grid.isInBound(v)} // filter out overlaps
+  .map {v => (v, grid.get(v))}
 }
 
 
@@ -126,32 +127,32 @@ def testSuite(): Bool = suite("util/gamegrid") {
   }
 
   test("initChessboard") {
-    assertEqual(initWith(2,3) {t => if(coordsToIndex(t.first, t.second, 2).mod(2) == 0){"O"} else {"X"}},
+    assertEqual(initWith(2,3) {v => if(coordsToIndex(v, 2).mod(2) == 0){"O"} else {"X"}},
                 Gamegrid(2,3,["O", "X", "O", "X", "O", "X"]))
   }
 
   test("initAscending") {
-    assertEqual(initWith(2,3) {t => coordsToIndex(t.first, t.second, 2)},
+    assertEqual(initWith(2,3) {v => coordsToIndex(v, 2)},
                 Gamegrid(2,3,[0, 1, 2, 3, 4, 5]))
   }
 
   test("set1") {
-    assertEqual(init(2,3,"O").set(0, 1, "X"),
+    assertEqual(init(2,3,"O").set((0, 1), "X"),
                 Gamegrid(2,3,["O", "O", "X", "O", "O", "O"]))
   }
 
   test("set2") {
-    assertEqual(init(2,3,"O").set(1, 0, "X"),
+    assertEqual(init(2,3,"O").set((1, 0), "X"),
                 Gamegrid(2,3,["O", "X", "O", "O", "O", "O"]))
   }
 
   test("set3") {
-    assertEqual(init(3,3,"O").set(0, 2, "X"),
+    assertEqual(init(3,3,"O").set((0, 2), "X"),
                 Gamegrid(3,3,["O", "O", "O", "O", "O", "O", "X", "O", "O"]))
   }
 
   test("coordsToIndex") {
-    assertEqual(coordsToIndex(1, 2, 4),
+    assertEqual(coordsToIndex((1, 2), 4),
                 9)
   }
 
@@ -161,19 +162,19 @@ def testSuite(): Bool = suite("util/gamegrid") {
   }
 
   test("map") {
-    val chessboard = initWith(2,3) {t => if(coordsToIndex(t.first, t.second, 2).mod(2) == 0){"O"} else {"X"}}
+    val chessboard = initWith(2,3) {v => if(coordsToIndex(v, 2).mod(2) == 0){"O"} else {"X"}}
     assertEqual(chessboard.map {x => if (x == "O") {"X"} else {"O"}},
                 Gamegrid(2,3,["X", "O", "X", "O", "X", "O"]))
   }
 
   test("mapWithIndex") {
     val grid = init(2, 3, "")
-    assertEqual(grid.mapWithIndex {(x, y, a) => if (y == 0 || y == 2) {"X"} else {"O"}},
+    assertEqual(grid.mapWithIndex {(v, a) => if (v.y == 0 || v.y == 2) {"X"} else {"O"}},
                 Gamegrid(2,3,["X", "X", "O", "O", "X", "X"]))
   }
 
   test("show") {
-    assertEqual(show(initWith(3,3) {t => if(coordsToIndex(t.first, t.second, 3).mod(2) == 0){"O"} else {"X"}}),
+    assertEqual(show(initWith(3,3) {v => if(coordsToIndex(v, 3).mod(2) == 0){"O"} else {"X"}}),
                 "O X O \nX O X \nO X O ")
   }
 }

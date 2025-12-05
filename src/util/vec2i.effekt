@@ -1,0 +1,33 @@
+import test
+
+
+type Vec2i = Tuple2[Int, Int]
+
+def x(v: Vec2i): Int / {} = {v.first}
+def y(v: Vec2i): Int / {} = {v.second}
+
+def infixAdd(a: Vec2i, b: Vec2i): Vec2i / {} = {
+  (a.x + b.x, a.y + b.y)
+}
+
+def infixSub(a: Vec2i, b: Vec2i): Vec2i / {} = {
+  (a.x - b.x, a.y - b.y)
+}
+
+def testSuite(): Bool = suite("util/gamegrid") {
+  test("x") {
+    assertEqual((1,2).x, 1)
+  }
+
+  test("y") {
+    assertEqual((1,2).y, 2)
+  }
+
+  test("a+b") {
+    assertEqual((1,2) + (3,2), (4, 4))
+  }
+
+  test("a-b") {
+    assertEqual((4,7) - (2,4), (2, 3))
+  }
+}

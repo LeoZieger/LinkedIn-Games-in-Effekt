@@ -5,11 +5,13 @@ import src/lib
 import process
 
 import src/util/gamegrid
+import src/util/vec2i
 import src/games/queens
 
 def main(): Unit = {
   val testResults =
     [ gamegrid::testSuite(),
+      vec2i::testSuite(),
       queens::testSuite()
     ]
 
