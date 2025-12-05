@@ -1,0 +1,21 @@
+module src/util/gamestate
+
+import src/util/gamegrid
+
+interface Gamestate {
+  def updateGrid(grid: Gamegrid[String]): Unit
+  def getUserInput(allowed: List[InputOption]): String
+  def gameWon(msg: String): Unit
+}
+
+record InputOption(key: String, help: String)
+
+def show(o: InputOption): String / {} = {
+  o.key ++ ": " ++ o.help
+}
+
+def show(lst: List[InputOption]): String / {} = {
+  var line = ""
+  lst.foreach {o => line = line ++ show(o) ++ "\n"}
+  line
+}

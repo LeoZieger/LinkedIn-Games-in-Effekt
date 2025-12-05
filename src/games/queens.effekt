@@ -2,6 +2,7 @@ module src/games/queens
 
 import src/util/gamegrid
 import src/util/randomUtil
+import src/util/gamestate
 
 import tty
 import random
@@ -64,13 +65,6 @@ def isValidQueenPlacement(board: Board, col: Int, row: Int): Bool / {} = {
                        .map {y => board.get(col, y)}
 
   surr_cells.append(horizontal_cells).append(vertical_cells).all {x => not(isQueenCell(x))} // if any queen cell is nearby, dismiss
-}
-
-// Checks if all queens that are placed are placed valid
-def isValidBoard(board: Board): Bool / {} = {
-  board.mapWithIndex[Cell, Bool] {(x, y, c) =>
-                                   c.isQueenCell && board.isValidQueenPlacement(x, y)}
-       .grid.all {b => b} // TODO: Fix
 }
 
 
@@ -160,15 +154,78 @@ def generateGame(size: Int): Board / {} = {
   board
 }
 
-def show_board(b: Board): String = {
-  show(
-    b.map[Cell, String]{c => c.reg.color ++ show(c.status) ++ Escape::RESET}
-  )
+def isWinning(board: Board): Bool / {} = {
+  val num_queens = board.grid.count {c => c.isQueenCell()}
+
+  val allQueensValid = board.mapWithIndex{(x, y, c) => c.isQueenCell.not() ||
+                                                       (c.isQueenCell && board.isValidQueenPlacement(x, y))}
+                            .grid.all {b => b} // TODO: Fix
+  (num_queens == board.width) && allQueensValid
 }
 
+def hideQueens(board: Board): Board / {} = {
+  board.mapWithIndex{(x, y, c) => if(c.isQueenCell) {Cell(Empty(), c.reg)} else {c}} // replace Queen cells with cells of same region
+}
+
+def gameloop(board: Board): Unit / {Gamestate} = {
+  var cursor_x = 0
+  var cursor_y = 0
+  var current_board = board
+
+  val input_options = [
+    InputOption("w", "Cursor up"),
+    InputOption("s", "Cursor down"),
+    InputOption("a", "Cursor left"),
+    InputOption("d", "Cursor right"),
+    InputOption("q", "Place Queen"),
+    InputOption("o", "Reset cell"),
+    InputOption("x", "Cross cell")
+  ]
+
+  exhaustively() {
+    if(current_board.isWinning()) {
+      do stop()
+    }
+
+    do updateGrid(current_board.mapWithIndex[Cell, String]
+                      {(x, y, c) => if (x == cursor_x && y == cursor_y) {Escape::BLINK ++ c.reg.color ++ show(c.status) ++ Escape::RESET}
+                                    else {c.reg.color ++ show(c.status) ++ Escape::RESET}
+                      }
+                  )
+
+    val input = do getUserInput(input_options)
+
+    input match {
+      case "w" => cursor_y = cursor_y - 1
+      case "a" => cursor_x = cursor_x - 1
+      case "s" => cursor_y = cursor_y + 1
+      case "d" => cursor_x = cursor_x + 1
+      case "q" => {
+          // TODO: make placeQueen(x,y)
+          val current_region = current_board.get(cursor_x, cursor_y).reg
+          current_board = current_board.set(cursor_x, cursor_y, Cell(Queen(), current_region))
+      }
+      case "x" => {
+          // TODO: make placeCross(x,y)
+          val current_region = current_board.get(cursor_x, cursor_y).reg
+          current_board = current_board.set(cursor_x, cursor_y, Cell(Crossed(), current_region))
+      }
+      case "o" => {
+          // TODO: make placeEmpty(x,y)
+          val current_region = current_board.get(cursor_x, cursor_y).reg
+          current_board = current_board.set(cursor_x, cursor_y, Cell(Empty(), current_region))
+      }
+      case _ => println("Invalid Input!") // TODO: Fix this
+    }
+  }
+
+  do gameWon("You won Queens!") // TODO: Something pretty
+}
+
+
 def main() = {
-  val b = generateGame(6)
-  println(show_board(b))
+  val b = generateGame(6).hideQueens()
+
 }
 
 def testSuite(): Bool = suite("games/queens") {
