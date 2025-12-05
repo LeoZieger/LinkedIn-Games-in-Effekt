@@ -187,11 +187,16 @@ def gameloop(board: Board): Unit / {Gamestate} = {
       do stop()
     }
 
+    // Sending current board to console
     do updateGrid(current_board.mapWithIndex[Cell, String]
                       {(x, y, c) => if (x == cursor_x && y == cursor_y) {Escape::BLINK ++ c.reg.color ++ show(c.status) ++ Escape::RESET}
                                     else {c.reg.color ++ show(c.status) ++ Escape::RESET}
                       }
                   )
+
+    // applying input of user
+    var old_cursor_x = cursor_x // < In case the new coords are out of bound
+    var old_cursor_y = cursor_y // <
 
     val input = do getUserInput(input_options)
 
@@ -216,6 +221,12 @@ def gameloop(board: Board): Unit / {Gamestate} = {
           current_board = current_board.set(cursor_x, cursor_y, Cell(Empty(), current_region))
       }
       case _ => println("Invalid Input!") // TODO: Fix this
+    }
+
+    // Resetting cursor if cursor got out of bound TODO: Maybe fix this by not allowing moving outside?
+    if (current_board.isInBound(cursor_x, cursor_y).not()) {
+      cursor_x = old_cursor_x
+      cursor_y = old_cursor_y
     }
   }
 
