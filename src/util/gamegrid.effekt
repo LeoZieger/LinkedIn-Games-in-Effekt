@@ -173,6 +173,48 @@ def testSuite(): Bool = suite("util/gamegrid") {
                 Gamegrid(2,3,["X", "X", "O", "O", "X", "X"]))
   }
 
+  test("isInBound1") {
+    assertTrue(init(3,3, "").isInBound((0,0)))
+  }
+
+  test("isInBound2") {
+    assertTrue(init(3,3, "").isInBound((2,2)))
+  }
+
+  test("isNotInBound1") {
+    assertFalse(init(3,3, "").isInBound((3,3)))
+  }
+
+  test("isNotInBound2") {
+    assertFalse(init(3,3, "").isInBound((-1,0)))
+  }
+
+  test("surroundingCells4") {
+    val grid = initWith(3,3) {v => v}
+    assertEqual(grid.surroundingCells4((1, 1)),
+                [(1, 0), (2, 1), (1, 2), (0, 1)])
+  }
+
+  test("surroundingCells4WithIndices") {
+    val grid = initWith(3,3) {v => v}
+    assertEqual(grid.surroundingCells4WithIndices((1, 1)),
+                [((1, 0), (1, 0)), ((2, 1), (2, 1)), ((1, 2), (1, 2)), ((0, 1), (0, 1))])
+  }
+
+  test("surroundingCells8") {
+    val grid = initWith(3,3) {v => v}
+    assertEqual(grid.surroundingCells8((1, 1)),
+                [(1, 0), (2, 0), (2, 1), (2, 2),
+                 (1, 2), (0, 2), (0, 1), (0, 0)])
+  }
+
+  test("surroundingCells8WithIndices") {
+    val grid = initWith(3,3) {v => v}
+    assertEqual(grid.surroundingCells8WithIndices((1, 1)),
+                [((1, 0), (1, 0)), ((2, 0), (2, 0)), ((2, 1), (2, 1)), ((2, 2), (2, 2)),
+                 ((1, 2), (1, 2)), ((0, 2), (0, 2)), ((0, 1), (0, 1)), ((0, 0), (0, 0))])
+  }
+
   test("show") {
     assertEqual(show(initWith(3,3) {v => if(coordsToIndex(v, 3).mod(2) == 0){"O"} else {"X"}}),
                 "O X O \nX O X \nO X O ")

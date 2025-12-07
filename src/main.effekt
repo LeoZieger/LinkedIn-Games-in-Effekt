@@ -40,6 +40,7 @@ def playinterface() {gameloop: () => Unit / {Gamestate}} = {
 }
 
 def main(): Unit =  {
+  with on[RuntimeError].panic()
   val b = queens::generateGame(6).hideQueens()
   with playinterface;
   gameloop(b)

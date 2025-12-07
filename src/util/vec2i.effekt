@@ -1,3 +1,6 @@
+module src/util/vec2i
+
+
 import test
 
 
@@ -14,7 +17,7 @@ def infixSub(a: Vec2i, b: Vec2i): Vec2i / {} = {
   (a.x - b.x, a.y - b.y)
 }
 
-def testSuite(): Bool = suite("util/gamegrid") {
+def testSuite(): Bool = suite("util/vec2i") {
   test("x") {
     assertEqual((1,2).x, 1)
   }

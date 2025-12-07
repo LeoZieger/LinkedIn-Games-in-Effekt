@@ -83,7 +83,7 @@ def placeNQueens(board: Board): List[Board] / {} = {
     var new_board = board
 
     columns.foreach {col =>
-      var row = do pickRow(board.width)
+      var row = do pickRow(board.height)
 
       with on[OutOfBounds].panic();
       val reg = REGIONS.get(region_index)
@@ -121,9 +121,10 @@ def expandRegions(board: Board): Board / {random} = {
   var new_board = board
 
   exhaustively {
-    var spreadableCells = new_board.mapWithIndex {(v, c) => (v, c)}
-                                   .grid.filter {t => t.second.isDefaultCell.not() &&
-                                                      new_board.surroundingCells4(t.first).any {isDefaultCell}} // can only expand if there are any free cells
+    // List of all Cells and their coords, that can be spread from
+    var spreadableCells: List[(Vec2i, Cell)]= new_board.mapWithIndex {(a, b) => (a, b)}
+                                                       .grid.filter {t => t.second.isDefaultCell.not() &&
+                                                                          new_board.surroundingCells4(t.first).any {isDefaultCell}}
 
     if(spreadableCells.isEmpty()) {
       do stop()
@@ -131,11 +132,10 @@ def expandRegions(board: Board): Board / {random} = {
 
     var expansions: List[Expansion] = spreadableCells.flatMap {t => 
                                                       new_board.surroundingCells4WithIndices(t.first)
-                                                                             .filter {t_ => t_.second.isDefaultCell}
-                                                                             .map {t_ => (t_.first, t_.second.reg)} }
+                                                               .filter {t_ => t_.second.isDefaultCell}
+                                                               .map {t_ => (t_.first, t.second.reg)} }
 
-    with on[OutOfBounds].panic();
-    val expansion = expansions.get(randomInt(0, expansions.size - 1))
+    val expansion = pickRandomElement(expansions)
 
     new_board = new_board.set(expansion.first, Cell(Empty(), expansion.second))
   }
@@ -143,11 +143,15 @@ def expandRegions(board: Board): Board / {random} = {
   new_board
 }
 
-def generateGame(size: Int): Board / {} = {
+def generateGame(size: Int): Board / {Exception[RuntimeError]} = {
   var board = gamegrid::init(size, size, DEFAULT_CELL)
 
   minstd(timestamp()) {
     var validBoards = board.placeNQueens()
+
+    if(validBoards.isEmpty) {
+      do raise(RuntimeError(), "Could not generate any boards for size " ++ show(size) ++ "x" ++ show(size) ++ "!")
+    }
 
     board = pickRandomElement(validBoards)
     board = board.expandRegions()
@@ -200,6 +204,7 @@ def gameloop(board: Board): Unit / {Gamestate} = {
 
     val input = do getUserInput(input_options)
 
+    // TODO: Check if queen placement is valid
     input match {
       case "w" => cursor = cursor - (0,1)
       case "a" => cursor = cursor - (1,0)
@@ -274,5 +279,54 @@ def testSuite(): Bool = suite("games/queens") {
                                 DEFAULT_CELL, DEFAULT_CELL, DEFAULT_CELL,
                                 DEFAULT_CELL, DEFAULT_CELL, DEFAULT_CELL])
     assertFalse(board.isValidQueenPlacement((1, 1)))
+  }
+
+  test("validQueenPlacement1x1") {
+    var board = Gamegrid(1, 1, [DEFAULT_CELL])
+    assertTrue(board.isValidQueenPlacement((0, 0)))
+  }
+
+  test("queensPlacement1x1") {
+    assertEqual(gamegrid::init(1, 1, DEFAULT_CELL).placeNQueens().size,
+                1)
+  }
+
+  test("queensPlacement2x2") {
+    assertEqual(gamegrid::init(2, 2, DEFAULT_CELL).placeNQueens(), // Queens not possibl on 2x2
+                Nil())
+  }
+
+  test("queensPlacement3x3") {
+    assertEqual(gamegrid::init(3, 3, DEFAULT_CELL).placeNQueens(), // Queens not possibl on 3x3
+                Nil())
+  }
+
+  test("queensPlacement4x4") {
+    assertEqual(gamegrid::init(4, 4, DEFAULT_CELL).placeNQueens().size, // Only solutions for 4x4
+                2)
+  }
+
+  test("4QueensFor4x4") {
+    with on[MissingValue].panic()
+    val board = gamegrid::init(4, 4, DEFAULT_CELL).placeNQueens().head()
+
+    assertEqual(board.grid.count{isQueenCell},
+                4)
+  }
+
+  test("5QueensFor5x5") {
+    with on[MissingValue].panic()
+    val board = gamegrid::init(5, 5, DEFAULT_CELL).placeNQueens().head()
+
+    assertEqual(board.grid.count{isQueenCell},
+                5)
+  }
+
+  test("expandRegions4x4") {
+    with on[MissingValue].panic()
+    val board = gamegrid::init(4, 4, DEFAULT_CELL).placeNQueens().head()
+
+    with minstd(timestamp());
+    assertFalse(board.expandRegions().grid.any{isDefaultCell}) // No more default cells after expaning
   }
 }
