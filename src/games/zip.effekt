@@ -1,0 +1,113 @@
+import src/util/gamegrid
+import src/util/randomUtil
+import src/util/vec2i
+import src/util/graph
+
+import random
+import bench
+import set
+import test
+
+type Maze = Gamegrid[Int]
+
+
+interface Search {
+  def pickNextCell(available_cells: List[Vec2i]): Vec2i
+  def fail(): Nothing
+}
+
+
+def findPaths(maze: Maze, start: Vec2i): List[Maze] / {} = {
+  try {
+    var new_maze = maze
+    var curr_pos = start
+    var curr_path_length = 0
+
+    // (list::build(maze.width * maze.height){i => i}).foreachIndex {(i, _) => // TODO: Fix this
+
+    exhaustively {
+      curr_path_length = curr_path_length + 1
+      new_maze = new_maze.set(curr_pos, curr_path_length)
+
+      val valid_next_cells = new_maze.surroundingCells4WithIndices(curr_pos)
+                                     .filter {t => t.second == -1 } // allow only empty cells
+                                     .map {t => t.first} // get coordinates
+
+      if (valid_next_cells.isEmpty && curr_path_length < maze.width * maze.height) {
+        do fail()
+      }
+
+      if (valid_next_cells.isEmpty && curr_path_length == maze.width * maze.height) {
+        do stop()
+      }
+
+      var next_pos = do pickNextCell(valid_next_cells) // TODO: Rename
+
+      curr_pos = next_pos
+    }
+
+    [new_maze]
+  } with Search {
+      def pickNextCell(available_cells) = {
+        var mazes: List[Maze] = []
+
+        available_cells.foreach {v =>
+          mazes = resume(v).append(mazes)
+        }
+        mazes
+      }
+      def fail() = {[]}
+  }
+}
+
+
+def generateGame(size: Int): Maze / {} = {
+  var maze = gamegrid::init(size, size, -1)
+
+  val mazes = findPaths(maze, (0, 0))
+
+  minstd(timestamp()) {
+    maze = pickRandomElement(mazes)
+  }
+  maze
+}
+
+def main() = {
+  val m = generateGame(6)
+
+  val sm = m.map {x => show(x)}
+
+
+
+  println(show(sm))
+}
+
+def testSuite(): Bool = suite("games/zip") {
+
+  test("findPaths2x2") {
+    assertEqual(gamegrid::init(2, 2, -1).findPaths((0,0)).size,
+                2) // verified
+  }
+
+  test("findPaths3x3") {
+    assertEqual(gamegrid::init(3, 3, -1).findPaths((0,0)).size,
+                8) // verified
+  }
+
+  test("findPaths4x4") {
+    assertFalse(gamegrid::init(4, 4, -1).findPaths((0,0)).isEmpty)
+  }
+
+  test("findPaths5x5") {
+    assertFalse(gamegrid::init(5, 5, -1).findPaths((0,0)).isEmpty)
+  }
+
+  test("findPaths6x6") {
+    assertFalse(gamegrid::init(6, 6, -1).findPaths((0,0)).isEmpty)
+  }
+
+  test("findPaths3x3Middle") {
+    assertEqual(gamegrid::init(3, 3, -1).findPaths((1,1)).size,
+                8) // verified
+  }
+}
