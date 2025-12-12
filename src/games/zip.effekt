@@ -18,15 +18,13 @@ interface Search {
 
 def findPaths(maze: Maze, start: Vec2i): List[Maze] / {} = {
   try {
-    var new_maze = maze
+    var new_maze = maze.copy()
     var curr_pos = start
     var curr_path_length = 0
 
-    // (list::build(maze.width * maze.height){i => i}).foreachIndex {(i, _) => // TODO: Fix this
-
     exhaustively {
       curr_path_length = curr_path_length + 1
-      new_maze = new_maze.set(curr_pos, curr_path_length)
+      new_maze = new_maze.setCopy(curr_pos, curr_path_length).copy()
 
       val valid_next_cells = new_maze.surroundingCells4WithIndices(curr_pos)
                                      .filter {t => t.second == -1 } // allow only empty cells
@@ -72,11 +70,9 @@ def generateGame(size: Int): Maze / {} = {
 }
 
 def main() = {
-  val m = generateGame(6)
+  val m = generateGame(5)
 
   val sm = m.map {x => show(x)}
-
-
 
   println(show(sm))
 }

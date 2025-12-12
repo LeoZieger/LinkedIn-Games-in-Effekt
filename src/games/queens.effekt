@@ -80,7 +80,7 @@ def placeNQueens(board: Board): List[Board] / {} = {
   try {
     var region_index = 0
     val columns = list::build(board.width) {x => x}
-    var new_board = board
+    var new_board = board.copy()
 
     columns.foreach {col =>
       var row = do pickRow(board.height)
@@ -92,7 +92,7 @@ def placeNQueens(board: Board): List[Board] / {} = {
 
 
       if(new_board.isValidQueenPlacement((col, row))) {
-        new_board = new_board.set((col, row), cell)
+        new_board = new_board.setCopy((col, row), cell)
         region_index = region_index + 1
       }
       else {
@@ -115,32 +115,33 @@ def placeNQueens(board: Board): List[Board] / {} = {
   }
 }
 
-
-def expandRegions(board: Board): Board / {random} = {
+// TODO: Use sets, or arrays, just not lists
+def expandRegions(board: Board): Unit / {random} = {
   type Expansion = (Vec2i, Region) // Coordinates and what the target Region would be (if expended)
-  var new_board = board
-
   exhaustively {
     // List of all Cells and their coords, that can be spread from
-    var spreadableCells: List[(Vec2i, Cell)]= new_board.mapWithIndex {(a, b) => (a, b)}
-                                                       .grid.filter {t => t.second.isDefaultCell.not() &&
-                                                                          new_board.surroundingCells4(t.first).any {isDefaultCell}}
+    var spreadableCells: Array[(Vec2i, Cell)]= board.mapWithIndex {(a, b) => (a, b)}
+                                                       .grid.filtered {t => t.second.isDefaultCell.not() &&
+                                                                          board.surroundingCells4(t.first).any {isDefaultCell}}
 
-    if(spreadableCells.isEmpty()) {
+    if(spreadableCells.size == 0) {
       do stop()
     }
 
-    var expansions: List[Expansion] = spreadableCells.flatMap {t => 
-                                                      new_board.surroundingCells4WithIndices(t.first)
-                                                               .filter {t_ => t_.second.isDefaultCell}
-                                                               .map {t_ => (t_.first, t.second.reg)} }
+    // Getting all neighbouring cells that are candidates for expansion
+    var expansions: List[Expansion] = []
+    spreadableCells.foreach { t =>
+      val surr_cells = board.surroundingCells4WithIndices(t.first)
+                                .filter {t_ => t_.second.isDefaultCell}
+                                .map {t_ => (t_.first, t.second.reg)}
+
+      expansions = expansions.append(surr_cells)
+    }
 
     val expansion = pickRandomElement(expansions)
 
-    new_board = new_board.set(expansion.first, Cell(Empty(), expansion.second))
+    board.set(expansion.first, Cell(Empty(), expansion.second))
   }
-
-  new_board
 }
 
 def generateGame(size: Int): Board / {Exception[RuntimeError]} = {
@@ -154,7 +155,7 @@ def generateGame(size: Int): Board / {Exception[RuntimeError]} = {
     }
 
     board = pickRandomElement(validBoards)
-    board = board.expandRegions()
+    board.expandRegions()
   }
 
   board
@@ -213,17 +214,17 @@ def gameloop(board: Board): Unit / {Gamestate} = {
       case "q" => {
           // TODO: make placeQueen(x,y)
           val current_region = current_board.get(cursor).reg
-          current_board = current_board.set(cursor, Cell(Queen(), current_region))
+          current_board.set(cursor, Cell(Queen(), current_region))
       }
       case "x" => {
           // TODO: make placeCross(x,y)
           val current_region = current_board.get(cursor).reg
-          current_board = current_board.set(cursor, Cell(Crossed(), current_region))
+          current_board.set(cursor, Cell(Crossed(), current_region))
       }
       case "o" => {
           // TODO: make placeEmpty(x,y)
           val current_region = current_board.get(cursor).reg
-          current_board = current_board.set(cursor, Cell(Empty(), current_region))
+          current_board.set(cursor, Cell(Empty(), current_region))
       }
       case _ => println("Invalid Input!") // TODO: Fix this
     }
@@ -254,35 +255,35 @@ def testSuite(): Bool = suite("games/queens") {
   }
 
   test("validQueenPlacement") {
-    var board = Gamegrid(3, 3, [Cell(Queen(), Region(0, "\u001b[31m")), DEFAULT_CELL, DEFAULT_CELL,
-                                DEFAULT_CELL, DEFAULT_CELL, DEFAULT_CELL,
-                                DEFAULT_CELL, DEFAULT_CELL, DEFAULT_CELL])
+    var board = Gamegrid(3, 3, fromList([Cell(Queen(), Region(0, "\u001b[31m")), DEFAULT_CELL, DEFAULT_CELL,
+                                              DEFAULT_CELL, DEFAULT_CELL, DEFAULT_CELL,
+                                              DEFAULT_CELL, DEFAULT_CELL, DEFAULT_CELL]))
     assertTrue(board.isValidQueenPlacement((2, 2)))
   }
 
   test("invalidQueenPlacementVert") {
-    var board = Gamegrid(3, 3, [Cell(Queen(), Region(0, "\u001b[31m")), DEFAULT_CELL, DEFAULT_CELL,
+    var board = Gamegrid(3, 3, fromList([Cell(Queen(), Region(0, "\u001b[31m")), DEFAULT_CELL, DEFAULT_CELL,
                                 DEFAULT_CELL, DEFAULT_CELL, DEFAULT_CELL,
-                                DEFAULT_CELL, DEFAULT_CELL, DEFAULT_CELL])
+                                DEFAULT_CELL, DEFAULT_CELL, DEFAULT_CELL]))
     assertFalse(board.isValidQueenPlacement((0, 2)))
   }
 
   test("invalidQueenPlacementHorizontal") {
-    var board = Gamegrid(3, 3, [Cell(Queen(), Region(0, "\u001b[31m")), DEFAULT_CELL, DEFAULT_CELL,
-                                DEFAULT_CELL, DEFAULT_CELL, DEFAULT_CELL,
-                                DEFAULT_CELL, DEFAULT_CELL, DEFAULT_CELL])
+    var board = Gamegrid(3, 3, fromList([Cell(Queen(), Region(0, "\u001b[31m")), DEFAULT_CELL, DEFAULT_CELL,
+                                         DEFAULT_CELL, DEFAULT_CELL, DEFAULT_CELL,
+                                         DEFAULT_CELL, DEFAULT_CELL, DEFAULT_CELL]))
     assertFalse(board.isValidQueenPlacement((2, 0)))
   }
 
   test("invalidQueenPlacementDiag") {
-    var board = Gamegrid(3, 3, [Cell(Queen(), Region(0, "\u001b[31m")), DEFAULT_CELL, DEFAULT_CELL,
-                                DEFAULT_CELL, DEFAULT_CELL, DEFAULT_CELL,
-                                DEFAULT_CELL, DEFAULT_CELL, DEFAULT_CELL])
+    var board = Gamegrid(3, 3, fromList([Cell(Queen(), Region(0, "\u001b[31m")), DEFAULT_CELL, DEFAULT_CELL,
+                                              DEFAULT_CELL, DEFAULT_CELL, DEFAULT_CELL,
+                                              DEFAULT_CELL, DEFAULT_CELL, DEFAULT_CELL]))
     assertFalse(board.isValidQueenPlacement((1, 1)))
   }
 
   test("validQueenPlacement1x1") {
-    var board = Gamegrid(1, 1, [DEFAULT_CELL])
+    var board = Gamegrid(1, 1, fromList([DEFAULT_CELL]))
     assertTrue(board.isValidQueenPlacement((0, 0)))
   }
 
@@ -327,6 +328,7 @@ def testSuite(): Bool = suite("games/queens") {
     val board = gamegrid::init(4, 4, DEFAULT_CELL).placeNQueens().head()
 
     with minstd(timestamp());
-    assertFalse(board.expandRegions().grid.any{isDefaultCell}) // No more default cells after expaning
+    board.expandRegions()
+    assertFalse(board.grid.any{isDefaultCell}) // No more default cells after expaning
   }
 }
