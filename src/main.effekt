@@ -1,9 +1,12 @@
 import tty
 import io/console
+import bench
+import random
 
 import src/util/gamestate
 import src/util/gamegrid
 import src/games/queens
+import src/games/zip
 
 
 def playinterface() {gameloop: () => Unit / {Gamestate}} = {
@@ -40,8 +43,22 @@ def playinterface() {gameloop: () => Unit / {Gamestate}} = {
 }
 
 def main(): Unit =  {
-  with on[RuntimeError].panic()
+  play_zip()
+}
+
+
+// TODO: Extract minstd to main
+def play_queens(): Unit = {
+  with on[RuntimeError].panic() // TODO: Do I need this?
   val b = queens::generateGame(6).hideQueens()
   with playinterface;
   gameloop(b)
+}
+
+def play_zip(): Unit = {
+  minstd(timestamp()) {
+    val m = zip::generateGame(3).hidePath()
+    with playinterface;
+    gameloop(m)
+  }
 }

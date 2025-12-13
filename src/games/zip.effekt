@@ -1,6 +1,7 @@
 import src/util/gamegrid
 import src/util/randomUtil
 import src/util/vec2i
+import src/util/gamestate
 
 import random
 import bench
@@ -24,7 +25,7 @@ def show(c: Cell): String / {} = {
 def show(s: Status): String / {} = {
   s match {
     case Pathelement(i) => show(i)
-    case Empty() => " "
+    case Empty() => "~"
   }
 }
 
@@ -132,48 +133,132 @@ def hidePath(maze: Maze): Maze /  {random} = {
   new_maze
 }
 
-
-def show_maze(maze: Maze): String / {} = {
-
-  val max_index_len = maze.grid.foldLeft(0) {(acc, c) => max(acc, show(c).length)}
-
-  show(
-    maze.map {c => show(c).padLeft(max_index_len)}
-  )
-}
-
-
-def generateGame(size: Int): Maze / {} = {
+def generateGame(size: Int): Maze / {random} = {
   var maze = gamegrid::init(size, size, EMPTY_CELL)
 
-  minstd(timestamp()) {
+  exhaustively { // TODO: Make this different
+    val start = pickRandomElement(list::build(maze.width * maze.height) {i => indexToCoords(i, maze.width)})
 
-    exhaustively { // TODO: Make this different
-      val start = pickRandomElement(list::build(maze.width * maze.height) {i => indexToCoords(i, maze.width)})
+    val mazes = findPaths(maze, start)
 
-      val mazes = findPaths(maze, start)
-
-      if(mazes.size > 0) {
-        maze = pickRandomElement(mazes)
-        do stop()
-      }
+    if(mazes.size > 0) {
+      maze = pickRandomElement(mazes)
+      do stop()
     }
   }
 
   maze
 }
 
-def main() = {
-  var m = generateGame(3)
+def isWinning(maze: Maze, path: List[Vec2i]): Bool / {} = {
+  with on[MissingValue].panic;
+  if(path.size < maze.width * maze.height || maze.get(path.last).isEmptyCell()) {
+    false
+  }
+  else {
+    var last_index = 0
+    var is_sorted = true
 
-  println(show_maze(m))
+    path.foreach {v =>
+      val c = maze.get(v)
+      c.status match {
+        case Pathelement(i) => if (i < last_index) {is_sorted = false} // TODO: Break here somehow
+        case Empty() => () // we dont care when empty cells are visited
+      }
+    }
 
-  minstd(timestamp()) {
-    m = m.hidePath()
+    is_sorted
+  }
+}
+
+// Remove turnbacks
+def cleanupPath(path: List[Vec2i]): List[Vec2i] / {} = {
+  if(path.size <= 2) {
+    path
+  }
+  else {
+    path match {
+      case Cons(a, Cons(b, Cons(c, rst))) => if (a == c) // This means it turned back after b
+                                              {Cons(a, cleanupPath(rst))} // removing unnecessary b and c
+                                             else
+                                              {Cons(a, cleanupPath(Cons(b, Cons(c, rst))))}
+      case _ => path
+    }
+  }
+}
+
+def validNextMoves(maze: Maze, cursor: Vec2i, path: List[Vec2i]): List[InputOption] = {
+  val input_options = [
+    (InputOption("w", "Cursor up"), (0, -1)),
+    (InputOption("s", "Cursor down"), (0, 1)),
+    (InputOption("a", "Cursor left"), (-1, 0)),
+    (InputOption("d", "Cursor right"), (1, 0))
+  ]
+
+  input_options.filter {t =>
+    val new_cursor = cursor + t.second
+
+    with on[OutOfBounds].panic();
+    val is_stepback = path.size >= 2 && (new_cursor == path.get(path.size - 2))
+
+    maze.isInBound(new_cursor) &&
+    (not(path.contains(new_cursor) {vec2i::equals}) || is_stepback)
+  }.map() {t => t.first} // returning only InputOption
+}
+
+def gameloop(maze: Maze): Unit / {Gamestate} = {
+  with on[RuntimeError].panic();
+  with on[MissingValue].panic();
+  // TODO: Rewrite this - its just finding the start ...
+  var cursor = maze.mapWithIndex {(v, c) => (v, c)}
+                   .grid.toList()
+                   .sortBy {(t1, t2) => {
+                      (t1.second.status, t2.second.status) match { // compare with Number in Cell
+                        case (Pathelement(i), Pathelement(j)) => i <= j
+                        case (Pathelement(i), Empty()) => true
+                        case (Empty(), Pathelement(j)) => false
+                        case (Empty(), Empty()) => true
+                      }}
+                    }
+                   .head().first
+  var current_maze = maze
+  var current_path: List[Vec2i] = [cursor]
+
+  exhaustively() {
+    if(current_maze.isWinning(current_path)) {
+      do stop()
+    }
+
+    // Sending current board to console
+    val max_index_len = maze.grid.foldLeft(0) {(acc, c) => max(acc, show(c).length)}
+    do updateGrid(maze.mapWithIndex {(v, c) => {
+        var s = show(c).padLeft(max_index_len)
+
+        if(v == cursor) {s = Escape::BLINK ++ s ++ Escape::RESET} // adding blinking cursor
+        if(current_path.contains(v) {vec2i::equals}) {s = "\u001b[31m" ++ s ++ Escape::RESET}
+
+        s
+    }})
+
+    // applying input of user
+    var old_cursor = cursor // < In case the new coords are out of bound
+
+    val input = do getUserInput(validNextMoves(maze, cursor, current_path))
+
+    input match {
+      case "w" => {cursor = cursor + (0,-1)}
+      case "a" => {cursor = cursor + (-1,0)}
+      case "s" => {cursor = cursor + (0,1)}
+      case "d" => {cursor = cursor + (1,0)}
+      case _ => println("Invalid Input!") // TODO: Fix this, maybe continue?
+    }
+
+    current_path = current_path.append([cursor])
+    current_path = cleanupPath(current_path)
+
   }
 
-  println("-----")
-  println(show_maze(m))
+  do gameWon("You won ZIP!") // TODO: Something pretty
 }
 
 def testSuite(): Bool = suite("games/zip") {
