@@ -3,10 +3,19 @@ module src/util/randomUtil
 import random
 
 def pickRandomElement[A](lst: List[A]): A / {random} = {
-    with on[OutOfBounds].panic();
-    lst.get(randomInt(0, lst.size - 1))
+  with on[OutOfBounds].panic();
+  lst.get(randomInt(0, lst.size - 1))
 }
 
 def shuffle[A](lst: List[A]): List[A] / {random} = {
   <>
+}
+
+def bernoulli(p_succ: Double) {succ: () => Unit / {}} {fail: () => Unit / {}}: Unit / {random} = {
+  if (randomDouble() <= p_succ) {
+    succ()
+  }
+  else {
+    fail()
+  }
 }

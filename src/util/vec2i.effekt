@@ -17,6 +17,26 @@ def infixSub(a: Vec2i, b: Vec2i): Vec2i / {} = {
   (a.x - b.x, a.y - b.y)
 }
 
+def equals(a: Vec2i, b: Vec2i): Bool / {} = {
+  a.first == b.first && a.second == b.second
+}
+
+def infixEq(a: Vec2i, b: Vec2i): Bool / {} = {
+  equals(a, b)
+}
+
+def infixNeq(a: Vec2i, b: Vec2i): Bool / {} = {
+  not(a == b)
+}
+
+def compare(a: Vec2i, b: Vec2i): Ordering / {} = {
+  compareInt(a.x, b.x) match {
+    case Less() => Less()
+    case Greater() => Greater()
+    case Equal() => compareInt(a.y, b.y)
+  }
+}
+
 def show(v: Vec2i): String / {} = "(" ++ show(v.x) ++ "," ++ show(v.y) ++ ")"
 
 def testSuite(): Bool = suite("util/vec2i") {
@@ -34,6 +54,29 @@ def testSuite(): Bool = suite("util/vec2i") {
 
   test("a-b") {
     assertEqual((4,7) - (2,4), (2, 3))
+  }
+
+  test("equal") {
+    assertTrue((1,2) == (1,2))
+  }
+
+  test("notEqual") {
+    assertTrue((1,2) != (2,1))
+  }
+
+  test("compare1") {
+    assertEqual(compare((1,2), (2,2)),
+                Less())
+  }
+
+  test("compare2") {
+    assertEqual(compare((3,2), (2,2)),
+                Greater())
+  }
+
+  test("compare3") {
+    assertEqual(compare((2,2), (2,3)),
+                Less())
   }
 
   test("show") {
