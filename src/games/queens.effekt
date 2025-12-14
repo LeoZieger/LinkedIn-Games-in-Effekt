@@ -9,6 +9,7 @@ import tty
 import random
 import bench
 import test
+import set
 
 
 type Status {
@@ -74,7 +75,6 @@ interface Search {
   def fail(): Nothing
 }
 
-// TODO: Verify that it works
 // TODO: Shuffle regions around somehow
 def placeNQueens(board: Board): List[Board] / {} = {
   try {
@@ -164,14 +164,38 @@ def generateGame(size: Int): Board / {Exception[RuntimeError]} = {
 def isWinning(board: Board): Bool / {} = {
   val num_queens = board.grid.count {c => c.isQueenCell()}
 
+  // Checking if more than 1 queen is in each region
+  var used_regions: Set[Int] = empty(box compareInt)
+  board.grid.foreach { c =>
+    if (c.isQueenCell()) {
+      used_regions = used_regions.insert(c.reg.id)
+    }
+  }
+
   val allQueensValid = board.mapWithIndex{(v, c) => c.isQueenCell.not() ||
                                                        (c.isQueenCell && board.isValidQueenPlacement(v))}
                             .grid.all {b => b} // TODO: Fix
-  (num_queens == board.width) && allQueensValid
+
+  (num_queens == board.width) && allQueensValid && (num_queens == used_regions.size)
 }
 
 def hideQueens(board: Board): Board / {} = {
   board.map{c => if(c.isQueenCell) {Cell(Empty(), c.reg)} else {c}} // replace Queen cells with cells of same region
+}
+
+def placeStatus(board: Board, s: Status, cursor: Vec2i): Unit / {} = {
+    val current_region = board.get(cursor).reg
+    board.set(cursor, Cell(s, current_region))
+}
+
+def addOntoIfInBound(v1: Vec2i, v2: Vec2i, board: Board): Vec2i / {} = {
+  val v3 = v1 + v2
+  if(board.isInBound(v3)) {
+    v3
+  }
+  else {
+    v1
+  }
 }
 
 def gameloop(board: Board): Unit / {Gamestate} = {
@@ -188,11 +212,7 @@ def gameloop(board: Board): Unit / {Gamestate} = {
     InputOption("x", "Cross cell")
   ]
 
-  exhaustively() {
-    if(current_board.isWinning()) {
-      do stop()
-    }
-
+  loop() {{l: Control} =>
     // Sending current board to console
     do updateGrid(current_board.mapWithIndex[Cell, String]
                       {(v, c) => if (v.x == cursor.x && v.y == cursor.y) {Escape::BLINK ++ c.reg.color ++ show(c.status) ++ Escape::RESET}
@@ -200,46 +220,38 @@ def gameloop(board: Board): Unit / {Gamestate} = {
                       }
                   )
 
-    // applying input of user
-    var old_cursor = cursor // < In case the new coords are out of bound
+    if(current_board.isWinning()) {
+      l.break()
+    }
 
     val input = do getUserInput(input_options)
 
-    // TODO: Check if queen placement is valid
     input match {
-      case "w" => cursor = cursor - (0,1)
-      case "a" => cursor = cursor - (1,0)
-      case "s" => cursor = cursor + (0,1)
-      case "d" => cursor = cursor + (1,0)
-      case "q" => {
-          // TODO: make placeQueen(x,y)
-          val current_region = current_board.get(cursor).reg
-          current_board.set(cursor, Cell(Queen(), current_region))
-      }
-      case "x" => {
-          // TODO: make placeCross(x,y)
-          val current_region = current_board.get(cursor).reg
-          current_board.set(cursor, Cell(Crossed(), current_region))
-      }
-      case "o" => {
-          // TODO: make placeEmpty(x,y)
-          val current_region = current_board.get(cursor).reg
-          current_board.set(cursor, Cell(Empty(), current_region))
-      }
-      case _ => println("Invalid Input!") // TODO: Fix this
-    }
-
-    // Resetting cursor if cursor got out of bound TODO: Maybe fix this by not allowing moving outside?
-    if (current_board.isInBound(cursor).not()) {
-      cursor = old_cursor
+      case "w" => cursor = cursor.addOntoIfInBound((0,-1), current_board)
+      case "a" => cursor = cursor.addOntoIfInBound((-1,0), current_board)
+      case "s" => cursor = cursor.addOntoIfInBound((0,1), current_board)
+      case "d" => cursor = cursor.addOntoIfInBound((1,0), current_board)
+      case "q" => current_board.placeStatus(Queen(), cursor)
+      case "x" => current_board.placeStatus(Crossed(), cursor)
+      case "o" => current_board.placeStatus(Empty(), cursor)
+      case _ => l.continue()
     }
   }
 
-  do gameWon("You won Queens!") // TODO: Something pretty
+  do gameWon(
+    """
+ __     __                                  ____                              _
+ \ \   / /                                 / __ \                            | |
+  \ \_/ /__  _   _  __      _____  _ __   | |  | |_   _  ___  ___ _ __  ___  | |
+   \   / _ \| | | | \ \ /\ / / _ \| '_ \  | |  | | | | |/ _ \/ _ \ '_ \/ __| | |
+    | | (_) | |_| |  \ V  V / (_) | | | | | |__| | |_| |  __/  __/ | | \__ \ |_|
+    |_|\___/ \__,_|   \_/\_/ \___/|_| |_|  \___\_\\__,_|\___|\___|_| |_|___/ (_)
+
+    """
+    )
 }
 
 
-// TODO: More tests about the gamegeneration
 def testSuite(): Bool = suite("games/queens") {
 
   test("isQueen") {
@@ -330,5 +342,86 @@ def testSuite(): Bool = suite("games/queens") {
     with minstd(timestamp());
     board.expandRegions()
     assertFalse(board.grid.any{isDefaultCell}) // No more default cells after expaning
+  }
+
+  test("isWinningByGeneration") {
+    with on[MissingValue].panic()
+    val board = gamegrid::init(4, 4, DEFAULT_CELL).placeNQueens().head()
+
+    with minstd(timestamp());
+    board.expandRegions()
+
+    assertTrue(board.isWinning())
+  }
+
+  test("isWinning") {
+    var board = Gamegrid(4, 4, fromList([Cell(Empty(), Region(1, "\u001b[31m")), Cell(Empty(), Region(1, "\u001b[31m")), // AAAA
+                                         Cell(Empty(), Region(1, "\u001b[31m")), Cell(Empty(), Region(1, "\u001b[31m")), // BBBB
+                                         Cell(Empty(), Region(2, "\u001b[31m")), Cell(Empty(), Region(2, "\u001b[31m")), // CCCC
+                                         Cell(Empty(), Region(2, "\u001b[31m")), Cell(Empty(), Region(2, "\u001b[31m")), // DDDD
+                                         Cell(Empty(), Region(3, "\u001b[31m")), Cell(Empty(), Region(3, "\u001b[31m")),
+                                         Cell(Empty(), Region(3, "\u001b[31m")), Cell(Empty(), Region(3, "\u001b[31m")),
+                                         Cell(Empty(), Region(4, "\u001b[31m")), Cell(Empty(), Region(4, "\u001b[31m")),
+                                         Cell(Empty(), Region(4, "\u001b[31m")), Cell(Empty(), Region(4, "\u001b[31m"))]))
+
+    board.placeStatus(Queen(), (0, 1))
+    board.placeStatus(Queen(), (1, 3))
+    board.placeStatus(Queen(), (2, 0))
+    board.placeStatus(Queen(), (3, 2))
+
+    assertTrue(board.isWinning())
+  }
+
+  test("isNotWinningNotEnoughQueen") {
+    var board = Gamegrid(4, 4, fromList([Cell(Empty(), Region(1, "\u001b[31m")), Cell(Empty(), Region(1, "\u001b[31m")), // AAAA
+                                         Cell(Empty(), Region(1, "\u001b[31m")), Cell(Empty(), Region(1, "\u001b[31m")), // BBBB
+                                         Cell(Empty(), Region(2, "\u001b[31m")), Cell(Empty(), Region(2, "\u001b[31m")), // CCCC
+                                         Cell(Empty(), Region(2, "\u001b[31m")), Cell(Empty(), Region(2, "\u001b[31m")), // DDDD
+                                         Cell(Empty(), Region(3, "\u001b[31m")), Cell(Empty(), Region(3, "\u001b[31m")),
+                                         Cell(Empty(), Region(3, "\u001b[31m")), Cell(Empty(), Region(3, "\u001b[31m")),
+                                         Cell(Empty(), Region(4, "\u001b[31m")), Cell(Empty(), Region(4, "\u001b[31m")),
+                                         Cell(Empty(), Region(4, "\u001b[31m")), Cell(Empty(), Region(4, "\u001b[31m"))]))
+
+    board.placeStatus(Queen(), (0, 1))
+    board.placeStatus(Queen(), (1, 3))
+    board.placeStatus(Queen(), (2, 0))
+
+    assertFalse(board.isWinning())
+  }
+
+  test("isNotWinningMultipleQueensInRegion") {
+    var board = Gamegrid(4, 4, fromList([Cell(Empty(), Region(1, "\u001b[31m")), Cell(Empty(), Region(1, "\u001b[31m")), // AAAA
+                                         Cell(Empty(), Region(1, "\u001b[31m")), Cell(Empty(), Region(1, "\u001b[31m")), // BBCC
+                                         Cell(Empty(), Region(2, "\u001b[31m")), Cell(Empty(), Region(2, "\u001b[31m")), // BBDD
+                                         Cell(Empty(), Region(3, "\u001b[31m")), Cell(Empty(), Region(3, "\u001b[31m")), // BBDD
+                                         Cell(Empty(), Region(2, "\u001b[31m")), Cell(Empty(), Region(2, "\u001b[31m")),
+                                         Cell(Empty(), Region(4, "\u001b[31m")), Cell(Empty(), Region(4, "\u001b[31m")),
+                                         Cell(Empty(), Region(2, "\u001b[31m")), Cell(Empty(), Region(2, "\u001b[31m")),
+                                         Cell(Empty(), Region(4, "\u001b[31m")), Cell(Empty(), Region(4, "\u001b[31m"))]))
+
+    board.placeStatus(Queen(), (0, 1)) // 2 Queen in same region B
+    board.placeStatus(Queen(), (1, 3)) // -^^
+    board.placeStatus(Queen(), (2, 0))
+    board.placeStatus(Queen(), (3, 2))
+
+    assertFalse(board.isWinning())
+  }
+
+  test("isNotWinning") {
+    var board = Gamegrid(4, 4, fromList([Cell(Empty(), Region(1, "\u001b[31m")), Cell(Empty(), Region(1, "\u001b[31m")), // AAAA
+                                         Cell(Empty(), Region(1, "\u001b[31m")), Cell(Empty(), Region(1, "\u001b[31m")), // BBBB
+                                         Cell(Empty(), Region(2, "\u001b[31m")), Cell(Empty(), Region(2, "\u001b[31m")), // CCCC
+                                         Cell(Empty(), Region(2, "\u001b[31m")), Cell(Empty(), Region(2, "\u001b[31m")), // DDDD
+                                         Cell(Empty(), Region(3, "\u001b[31m")), Cell(Empty(), Region(3, "\u001b[31m")),
+                                         Cell(Empty(), Region(3, "\u001b[31m")), Cell(Empty(), Region(3, "\u001b[31m")),
+                                         Cell(Empty(), Region(4, "\u001b[31m")), Cell(Empty(), Region(4, "\u001b[31m")),
+                                         Cell(Empty(), Region(4, "\u001b[31m")), Cell(Empty(), Region(4, "\u001b[31m"))]))
+
+    board.placeStatus(Queen(), (0, 1))
+    board.placeStatus(Queen(), (1, 1)) // Same column
+    board.placeStatus(Queen(), (2, 0))
+    board.placeStatus(Queen(), (3, 2))
+
+    assertFalse(board.isWinning())
   }
 }
