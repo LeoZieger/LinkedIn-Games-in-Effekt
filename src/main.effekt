@@ -10,6 +10,8 @@ import src/games/zip
 
 
 def playinterface() {gameloop: () => Unit / {Gamestate}} = {
+  var last_grid = init(1, 1, "") // Dummy value
+
   with console;
   try {
     gameloop()
@@ -26,13 +28,19 @@ def playinterface() {gameloop: () => Unit / {Gamestate}} = {
             ret = input
             do stop()
           }
+          else {
+            println(Screen::clear()) // In case of invalid input, show the screen again
+            println(show(last_grid))
+            println(show(allowed)) // + Input Options
+          }
         }
         resume(ret)
       }
 
       def updateGrid(grid) = {
+        last_grid = grid
         println(Screen::clear())
-        println(show(grid))
+        println(show(last_grid))
         resume(())
       }
 
@@ -43,22 +51,21 @@ def playinterface() {gameloop: () => Unit / {Gamestate}} = {
 }
 
 def main(): Unit =  {
+  with minstd(timestamp());
+  // play_queens()
   play_zip()
 }
 
 
-// TODO: Extract minstd to main
-def play_queens(): Unit = {
+def play_queens(): Unit / {random}= {
   with on[RuntimeError].panic() // TODO: Do I need this?
-  val b = queens::generateGame(6).hideQueens()
+  val b = queens::generateGame(4).hideQueens()
   with playinterface;
   gameloop(b)
 }
 
-def play_zip(): Unit = {
-  minstd(timestamp()) {
-    val m = zip::generateGame(3).hidePath()
+def play_zip(): Unit / {random} = {
+    val m = zip::generateGame(6).hidePath(0.3)
     with playinterface;
     gameloop(m)
-  }
 }

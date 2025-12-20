@@ -6,6 +6,7 @@ import process
 
 import src/util/gamegrid
 import src/util/vec2i
+import src/util/randomutil
 import src/games/queens
 import src/games/zip
 
@@ -13,6 +14,7 @@ def main(): Unit = {
   val testResults =
     [ gamegrid::testSuite(),
       vec2i::testSuite(),
+      randomutil::testSuite(),
       queens::testSuite(),
       zip::testSuite()
     ]

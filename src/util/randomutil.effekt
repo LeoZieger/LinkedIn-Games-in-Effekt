@@ -1,0 +1,50 @@
+module src/util/randomutil
+
+import random
+import test
+import bench
+
+def pickRandomElement[A](lst: List[A]): A / {random} = {
+  with on[OutOfBounds].panic();
+  lst.get(randomInt(0, lst.size - 1))
+}
+
+def shuffle[A](lst: List[A]): List[A] / {random} = {
+  with on[OutOfBounds].panic();
+
+  var new_lst: List[A] = []
+  var old_lst = lst
+
+  repeat(old_lst.size) {
+    val index = randomInt(0, old_lst.size - 1)
+    new_lst = Cons(old_lst.get(index), new_lst)
+    old_lst = old_lst.deleteAt(index)
+  }
+
+  new_lst
+}
+
+def bernoulli(p_succ: Double) {succ: () => Unit / {}} {fail: () => Unit / {}}: Unit / {random} = {
+  if (randomDouble() <= p_succ) {
+    succ()
+  }
+  else {
+    fail()
+  }
+}
+
+
+def testSuite(): Bool = suite("util/randomutil") {
+
+  test("shuffle") {
+    with minstd(timestamp())
+    val old_lst = [1,2,3,4,5]
+
+    val new_lst = old_lst.shuffle()
+
+    val all_exist = old_lst.all {x => new_lst.contains(x) {(a, b) => a == b}}
+
+    assertTrue(all_exist && new_lst.size == old_lst.size)
+  }
+
+}

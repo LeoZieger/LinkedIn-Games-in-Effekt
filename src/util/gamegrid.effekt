@@ -149,6 +149,18 @@ def surroundingCells8WithIndices[A](grid: Gamegrid[A] ,v: Vec2i): List[(Vec2i, A
 }
 
 
+// TODO: Test
+def addOntoIfInBound[A](v1: Vec2i, v2: Vec2i, grid: Gamegrid[A]): Vec2i / {} = {
+  val v3 = v1 + v2
+  if(grid.isInBound(v3)) {
+    v3
+  }
+  else {
+    v1
+  }
+}
+
+
 def equals(a: Gamegrid[String], b: Gamegrid[String]): Bool / {} = {
   a.width == b.width && a.height == b.height && array::equals(a.grid, b.grid) {(s1, s2) => s1 == s2}
 }

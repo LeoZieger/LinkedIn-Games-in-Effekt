@@ -1,13 +1,13 @@
 import src/util/gamegrid
-import src/util/randomUtil
+import src/util/randomutil
 import src/util/vec2i
 import src/util/gamestate
 
 import random
-import bench
 import test
 import stream
 import tty
+import set
 
 type Status {
   Pathelement(i: Int)
@@ -15,6 +15,14 @@ type Status {
 }
 
 record Cell(status: Status)
+
+def equals(c1: Cell, c2: Cell): Bool / {} = {
+  (c1.status, c2.status) match {
+    case (Pathelement(i), Pathelement(j)) => i == j
+    case (Empty(), Empty()) => true
+    case _ => false
+  }
+}
 
 val EMPTY_CELL = Cell(Empty())
 
@@ -65,9 +73,9 @@ def findPaths(maze: Maze, start: Vec2i): List[Maze] / {} = {
         do stop()
       }
 
-      var next_pos = do pickNextCell(valid_next_cells) // TODO: Rename
+      var next_cell = do pickNextCell(valid_next_cells) // TODO: Rename
 
-      curr_pos = next_pos
+      curr_pos = next_cell
     }
 
     [new_maze]
@@ -84,6 +92,54 @@ def findPaths(maze: Maze, start: Vec2i): List[Maze] / {} = {
   }
 }
 
+def findSinglePath(maze: Maze, start: Vec2i): Option[Maze] / {random} = {
+  try {
+    var new_maze = maze.copy()
+    var curr_pos = start
+    var curr_path_length = 0
+
+    exhaustively { // TODO: Transform this to a fixed number of iterations (somehow)
+      curr_path_length = curr_path_length + 1
+      new_maze = new_maze.setCopy(curr_pos, Cell(Pathelement(curr_path_length)))
+
+      val valid_next_cells = new_maze.surroundingCells4WithIndices(curr_pos)
+                                     .filter {t => t.second.isEmptyCell() } // allow only empty cells
+                                     .map {t => t.first} // get coordinates
+
+      if (valid_next_cells.isEmpty && curr_path_length < maze.width * maze.height) {
+        do fail()
+      }
+
+      if (valid_next_cells.isEmpty && curr_path_length == maze.width * maze.height) {
+        do stop()
+      }
+
+      var next_cell = do pickNextCell(valid_next_cells) // TODO: Rename
+
+      curr_pos = next_cell
+    }
+
+    Some(new_maze)
+  } with Search {
+      def pickNextCell(available_cells: List[Vec2i]) = {
+        var o_maze: Option[Maze] = None()
+
+        shuffle(available_cells).foreach {(v) {l: Control} =>
+          resume(v) match {
+            case Some(m) => {
+              o_maze = Some(m)
+              l.break()
+            }
+            case None() => l.continue()
+          }
+        }
+        o_maze
+      }
+
+      def fail() = {None()}
+  }
+}
+
 def extractPath(maze: Maze): List[Vec2i] / {} = {
   with on[RuntimeError].panic();
   maze.mapWithIndex {(v, c) => (v, c)}
@@ -97,9 +153,8 @@ def extractPath(maze: Maze): List[Vec2i] / {} = {
       .map {t => t.first} // extract only Vector again
 }
 
-def hidePath(maze: Maze): Maze /  {random} = {
+def hidePath(maze: Maze, keep_factor: Double): Maze /  {random} = {
   val path_length = maze.width * maze.height
-  val keep_factor = 0.4 // TODO: Make variable
 
   val path = maze.extractPath()
   var new_path: List[Vec2i] = []
@@ -139,11 +194,14 @@ def generateGame(size: Int): Maze / {random} = {
   exhaustively { // TODO: Make this different
     val start = pickRandomElement(list::build(maze.width * maze.height) {i => indexToCoords(i, maze.width)})
 
-    val mazes = findPaths(maze, start)
+    val o_maze = findSinglePath(maze, start)
 
-    if(mazes.size > 0) {
-      maze = pickRandomElement(mazes)
-      do stop()
+    o_maze match {
+      case Some(m) => {
+        maze = m
+        do stop()
+      }
+      case None() => ()
     }
   }
 
@@ -159,15 +217,30 @@ def isWinning(maze: Maze, path: List[Vec2i]): Bool / {} = {
     var last_index = 0
     var is_sorted = true
 
-    path.foreach {v =>
+    var contains_duplicates = false
+    var visited: Set[Vec2i] = empty(box vec2i::compare)
+
+    path.foreach {(v) {l: Control} =>
+
+      // Checking vor duplicates
+      if(visited.contains(v)) {
+        contains_duplicates = true
+        l.break()
+      }
+      visited.insert(v)
+
+      // Checking if visited cells are in ascending order
       val c = maze.get(v)
       c.status match {
-        case Pathelement(i) => if (i < last_index) {is_sorted = false} // TODO: Break here somehow
+        case Pathelement(i) => if (i < last_index) {
+                                is_sorted = false
+                                l.break()
+                               }
         case Empty() => () // we dont care when empty cells are visited
       }
     }
 
-    is_sorted
+    is_sorted && not(contains_duplicates)
   }
 }
 
@@ -206,29 +279,24 @@ def validNextMoves(maze: Maze, cursor: Vec2i, path: List[Vec2i]): List[InputOpti
   }.map() {t => t.first} // returning only InputOption
 }
 
+def findStart(maze: Maze): Vec2i / {} = {
+  with on[RuntimeError].panic();
+  maze.grid.indexOf(Cell(Pathelement(1))) {(a, b) => a.equals(b)} match { // Searching for Pathelement of index 1
+            case Some(i) => indexToCoords(i, maze.width)
+            case None() => raise("Can not find start in grid!")
+  }
+}
+
 def gameloop(maze: Maze): Unit / {Gamestate} = {
   with on[RuntimeError].panic();
   with on[MissingValue].panic();
-  // TODO: Rewrite this - its just finding the start ...
-  var cursor = maze.mapWithIndex {(v, c) => (v, c)}
-                   .grid.toList()
-                   .sortBy {(t1, t2) => {
-                      (t1.second.status, t2.second.status) match { // compare with Number in Cell
-                        case (Pathelement(i), Pathelement(j)) => i <= j
-                        case (Pathelement(i), Empty()) => true
-                        case (Empty(), Pathelement(j)) => false
-                        case (Empty(), Empty()) => true
-                      }}
-                    }
-                   .head().first
+
+  var cursor = findStart(maze)
+
   var current_maze = maze
   var current_path: List[Vec2i] = [cursor]
 
-  exhaustively() {
-    if(current_maze.isWinning(current_path)) {
-      do stop()
-    }
-
+  loop {{l: Control} =>
     // Sending current board to console
     val max_index_len = maze.grid.foldLeft(0) {(acc, c) => max(acc, show(c).length)}
     do updateGrid(maze.mapWithIndex {(v, c) => {
@@ -240,25 +308,40 @@ def gameloop(maze: Maze): Unit / {Gamestate} = {
         s
     }})
 
+    if(current_maze.isWinning(current_path)) {
+      l.break()
+    }
+
     // applying input of user
     var old_cursor = cursor // < In case the new coords are out of bound
 
     val input = do getUserInput(validNextMoves(maze, cursor, current_path))
 
     input match {
-      case "w" => {cursor = cursor + (0,-1)}
-      case "a" => {cursor = cursor + (-1,0)}
-      case "s" => {cursor = cursor + (0,1)}
-      case "d" => {cursor = cursor + (1,0)}
-      case _ => println("Invalid Input!") // TODO: Fix this, maybe continue?
+      case "w" => {cursor = cursor.addOntoIfInBound((0, -1), maze)}
+      case "a" => {cursor = cursor.addOntoIfInBound((-1, 0), maze)}
+      case "s" => {cursor = cursor.addOntoIfInBound((0, 1), maze)}
+      case "d" => {cursor = cursor.addOntoIfInBound((1, 0), maze)}
+      case _ => l.continue()
     }
 
     current_path = current_path.append([cursor])
     current_path = cleanupPath(current_path)
-
   }
 
-  do gameWon("You won ZIP!") // TODO: Something pretty
+  do gameWon(
+  """
+ __     __                                 _______       _
+ \ \   / /                                |___  (_)     | |
+  \ \_/ /__  _   _  __      _____  _ __      / / _ _ __ | |
+   \   / _ \| | | | \ \ /\ / / _ \| '_ \    / / | | '_ \| |
+    | | (_) | |_| |  \ V  V / (_) | | | |  / /__| | |_) |_|
+    |_|\___/ \__,_|   \_/\_/ \___/|_| |_| /_____|_| .__/(_)
+                                                  | |
+                                                  |_|
+
+  """
+  )
 }
 
 def testSuite(): Bool = suite("games/zip") {
@@ -281,12 +364,43 @@ def testSuite(): Bool = suite("games/zip") {
     assertFalse(gamegrid::init(5, 5, EMPTY_CELL).findPaths((0,0)).isEmpty)
   }
 
-  test("findPaths6x6") {
-    assertFalse(gamegrid::init(6, 6, EMPTY_CELL).findPaths((0,0)).isEmpty)
-  }
-
   test("findPaths3x3Middle") {
     assertEqual(gamegrid::init(3, 3, EMPTY_CELL).findPaths((1,1)).size,
                 8) // verified
+  }
+
+  test("findSinglePath") {
+    val all_paths_from_00 = [[(0,0), (0, 1), (1, 1), (1, 0)],
+                             [(0, 0), (1, 0), (1, 1), (0, 1)]]
+
+
+    def equals(p1: List[Vec2i], p2: List[Vec2i]): Bool / {} = {
+      if (p1.size != p2.size) {false}
+      else {
+        zip(p1, p2).all {t => t.first.vec2i::equals(t.second)}
+      }
+    }
+
+    var res = false
+    with minstd(1234);
+    gamegrid::init(2, 2, EMPTY_CELL).findSinglePath((0,0)) match {
+      case None() => res = false
+      case Some(m) => {
+        val p = m.extractPath()
+        res = all_paths_from_00.contains(p) {(a, b) => a.equals(b)}
+      }
+    }
+
+    assertTrue(res)
+  }
+
+  test("findStart") {
+    assertEqual(Gamegrid(2, 2, fromList([Cell(Pathelement(1)), Cell(Pathelement(2)), Cell(Pathelement(4)), Cell(Pathelement(3))])).findStart(),
+                (0, 0))
+  }
+
+  test("extractPath") {
+    assertEqual(Gamegrid(2, 2, fromList([Cell(Pathelement(1)), Cell(Pathelement(2)), Cell(Pathelement(4)), Cell(Pathelement(3))])).extractPath(),
+                [(0, 0), (1, 0), (1, 1), (0, 1)])
   }
 }

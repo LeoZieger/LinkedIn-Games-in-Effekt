@@ -2,12 +2,11 @@ module src/games/queens
 
 import src/util/gamegrid
 import src/util/vec2i
-import src/util/randomUtil
+import src/util/randomutil
 import src/util/gamestate
 
 import tty
 import random
-import bench
 import test
 import set
 
@@ -144,19 +143,17 @@ def expandRegions(board: Board): Unit / {random} = {
   }
 }
 
-def generateGame(size: Int): Board / {Exception[RuntimeError]} = {
+def generateGame(size: Int): Board / {random, Exception[RuntimeError]} = {
   var board = gamegrid::init(size, size, DEFAULT_CELL)
 
-  minstd(timestamp()) {
-    var validBoards = board.placeNQueens()
+  var validBoards = board.placeNQueens()
 
-    if(validBoards.isEmpty) {
-      do raise(RuntimeError(), "Could not generate any boards for size " ++ show(size) ++ "x" ++ show(size) ++ "!")
-    }
-
-    board = pickRandomElement(validBoards)
-    board.expandRegions()
+  if(validBoards.isEmpty) {
+    do raise(RuntimeError(), "Could not generate any boards for size " ++ show(size) ++ "x" ++ show(size) ++ "!")
   }
+
+  board = pickRandomElement(validBoards)
+  board.expandRegions()
 
   board
 }
@@ -339,7 +336,7 @@ def testSuite(): Bool = suite("games/queens") {
     with on[MissingValue].panic()
     val board = gamegrid::init(4, 4, DEFAULT_CELL).placeNQueens().head()
 
-    with minstd(timestamp());
+    with minstd(1234);
     board.expandRegions()
     assertFalse(board.grid.any{isDefaultCell}) // No more default cells after expaning
   }
@@ -348,7 +345,7 @@ def testSuite(): Bool = suite("games/queens") {
     with on[MissingValue].panic()
     val board = gamegrid::init(4, 4, DEFAULT_CELL).placeNQueens().head()
 
-    with minstd(timestamp());
+    with minstd(1234);
     board.expandRegions()
 
     assertTrue(board.isWinning())
