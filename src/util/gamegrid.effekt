@@ -161,6 +161,50 @@ def addOntoIfInBound[A](v1: Vec2i, v2: Vec2i, grid: Gamegrid[A]): Vec2i / {} = {
 }
 
 
+// TODO: Test
+def extendGridBy1[A](grid: Gamegrid[A], default: A): Gamegrid[A] / {} = {
+  var new_grid = init(2 * grid.width + 1, 2 * grid.height + 1, default)
+
+  grid.grid.foreachIndex {(i, a) =>
+    val v = indexToCoords(i, grid.width)
+    val new_x = (v.x * 2) + 1
+    val new_y = (v.y * 2) + 1
+
+    new_grid.set((new_x, new_y), a)
+  }
+
+  new_grid
+}
+
+
+// TODO: Test
+def extendGridBy1Connecting[A](grid: Gamegrid[A], default: A, connections: List[(Vec2i, Vec2i, A)]): Gamegrid[A] / {} = {
+  var new_grid = init(2 * grid.width + 1, 2 * grid.height + 1, default)
+
+  // Placing old cells into new grid
+  grid.grid.foreachIndex {(i, a) =>
+    val v = indexToCoords(i, grid.width)
+    val new_v = (v * 2) + (1,1) // transforming v into new grid
+
+    new_grid.set(new_v, a)
+  }
+
+  // Placing connections
+  connections.foreach {t =>
+
+    val v1_t = (t.first * 2) + (1,1)
+    val v2_t = (t.second * 2) + (1,1)
+
+    if((v1_t - v2_t).length == 2.0) { // make sure only for cells with one cell in between
+      val middle = ((v1_t.x + v2_t.x) / 2, (v1_t.y + v2_t.y) / 2)
+      new_grid.set(middle, t.third)
+    }
+  }
+
+  new_grid
+}
+
+
 def equals(a: Gamegrid[String], b: Gamegrid[String]): Bool / {} = {
   a.width == b.width && a.height == b.height && array::equals(a.grid, b.grid) {(s1, s2) => s1 == s2}
 }

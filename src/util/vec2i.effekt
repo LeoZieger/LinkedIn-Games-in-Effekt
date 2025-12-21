@@ -29,6 +29,18 @@ def infixNeq(a: Vec2i, b: Vec2i): Bool / {} = {
   not(a == b)
 }
 
+def mul(v: Vec2i, k: Int): Vec2i / {} = {
+  (v.x * k, v.y * k)
+}
+
+def infixMul(v: Vec2i, k: Int): Vec2i / {} = {
+  v.mul(k)
+}
+
+def length(v: Vec2i): Double / {} = {
+  sqrt(v.x.toDouble.pow(2) + v.y.toDouble.pow(2))
+}
+
 def compare(a: Vec2i, b: Vec2i): Ordering / {} = {
   compareInt(a.x, b.x) match {
     case Less() => Less()
@@ -54,6 +66,18 @@ def testSuite(): Bool = suite("util/vec2i") {
 
   test("a-b") {
     assertEqual((4,7) - (2,4), (2, 3))
+  }
+
+  test("a*k") {
+    assertEqual((1,2) * 3, (3, 6))
+  }
+
+  test("length") {
+    assertEqual((4, 3).length, 5.0)
+  }
+
+  test("length2") {
+    assertEqual((0,1).length, 1.0)
   }
 
   test("equal") {

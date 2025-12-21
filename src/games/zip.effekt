@@ -51,7 +51,7 @@ interface Search {
 
 type Maze = Gamegrid[Cell]
 
-def findPaths(maze: Maze, start: Vec2i): List[Maze] / {} = {
+def generatePaths(maze: Maze, start: Vec2i): List[Maze] / {} = {
   try {
     var new_maze = maze.copy()
     var curr_pos = start
@@ -73,7 +73,7 @@ def findPaths(maze: Maze, start: Vec2i): List[Maze] / {} = {
         do stop()
       }
 
-      var next_cell = do pickNextCell(valid_next_cells) // TODO: Rename
+      var next_cell = do pickNextCell(valid_next_cells)
 
       curr_pos = next_cell
     }
@@ -92,7 +92,7 @@ def findPaths(maze: Maze, start: Vec2i): List[Maze] / {} = {
   }
 }
 
-def findSinglePath(maze: Maze, start: Vec2i): Option[Maze] / {random} = {
+def generateSinglePath(maze: Maze, start: Vec2i): Option[Maze] / {random} = {
   try {
     var new_maze = maze.copy()
     var curr_pos = start
@@ -114,7 +114,7 @@ def findSinglePath(maze: Maze, start: Vec2i): Option[Maze] / {random} = {
         do stop()
       }
 
-      var next_cell = do pickNextCell(valid_next_cells) // TODO: Rename
+      var next_cell = do pickNextCell(valid_next_cells)
 
       curr_pos = next_cell
     }
@@ -194,9 +194,7 @@ def generateGame(size: Int): Maze / {random} = {
   exhaustively { // TODO: Make this different
     val start = pickRandomElement(list::build(maze.width * maze.height) {i => indexToCoords(i, maze.width)})
 
-    val o_maze = findSinglePath(maze, start)
-
-    o_maze match {
+    generateSinglePath(maze, start) match {
       case Some(m) => {
         maze = m
         do stop()
@@ -287,10 +285,31 @@ def findStart(maze: Maze): Vec2i / {} = {
   }
 }
 
-def gameloop(maze: Maze): Unit / {Gamestate} = {
-  with on[RuntimeError].panic();
-  with on[MissingValue].panic();
+def generateVisualizedMaze(maze: Maze, path: List[Vec2i], cursor: Vec2i): Gamegrid[String] / {} = {
 
+  val max_index_len = maze.grid.foldLeft(0) {(acc, c) => max(acc, show(c).length)}
+  val PATH_SYMBOL = "\u001b[31m" ++ "$".padLeft(max_index_len) ++ Escape::RESET // TODO: Find out how to to this reasonable
+
+  def transformPath(path: List[Vec2i]): List[(Vec2i, Vec2i, String)] / {} = {
+    path match {
+      case Cons(v1, Cons(v2, rst)) => Cons((v1, v2, PATH_SYMBOL),
+                                           transformPath(Cons(v2, rst)))
+      case Cons(v1, Nil()) => []
+      case Nil() => []
+    }
+  }
+
+  maze.mapWithIndex {(v, c) => {
+        var s = show(c).padLeft(max_index_len)
+
+        if(v == cursor) {s = Escape::BLINK ++ s ++ Escape::RESET} // adding blinking cursor
+        if(path.contains(v) {vec2i::equals}) {s = "\u001b[31m" ++ s ++ Escape::RESET}
+
+        s}}
+      .extendGridBy1Connecting(" ".padLeft(max_index_len), transformPath(path))
+}
+
+def gameloop(maze: Maze): Unit / {Gamestate} = {
   var cursor = findStart(maze)
 
   var current_maze = maze
@@ -298,15 +317,7 @@ def gameloop(maze: Maze): Unit / {Gamestate} = {
 
   loop {{l: Control} =>
     // Sending current board to console
-    val max_index_len = maze.grid.foldLeft(0) {(acc, c) => max(acc, show(c).length)}
-    do updateGrid(maze.mapWithIndex {(v, c) => {
-        var s = show(c).padLeft(max_index_len)
-
-        if(v == cursor) {s = Escape::BLINK ++ s ++ Escape::RESET} // adding blinking cursor
-        if(current_path.contains(v) {vec2i::equals}) {s = "\u001b[31m" ++ s ++ Escape::RESET}
-
-        s
-    }})
+    do updateGrid(generateVisualizedMaze(current_maze, current_path, cursor))
 
     if(current_maze.isWinning(current_path)) {
       l.break()
@@ -346,30 +357,30 @@ def gameloop(maze: Maze): Unit / {Gamestate} = {
 
 def testSuite(): Bool = suite("games/zip") {
 
-  test("findPaths2x2") {
-    assertEqual(gamegrid::init(2, 2, EMPTY_CELL).findPaths((0,0)).size,
+  test("generatePaths2x2") {
+    assertEqual(gamegrid::init(2, 2, EMPTY_CELL).generatePaths((0,0)).size,
                 2) // verified
   }
 
-  test("findPaths3x3") {
-    assertEqual(gamegrid::init(3, 3, EMPTY_CELL).findPaths((0,0)).size,
+  test("generatePaths3x3") {
+    assertEqual(gamegrid::init(3, 3, EMPTY_CELL).generatePaths((0,0)).size,
                 8) // verified
   }
 
-  test("findPaths4x4") {
-    assertFalse(gamegrid::init(4, 4, EMPTY_CELL).findPaths((0,0)).isEmpty)
+  test("generatePaths4x4") {
+    assertFalse(gamegrid::init(4, 4, EMPTY_CELL).generatePaths((0,0)).isEmpty)
   }
 
-  test("findPaths5x5") {
-    assertFalse(gamegrid::init(5, 5, EMPTY_CELL).findPaths((0,0)).isEmpty)
+  test("generatePaths5x5") {
+    assertFalse(gamegrid::init(5, 5, EMPTY_CELL).generatePaths((0,0)).isEmpty)
   }
 
-  test("findPaths3x3Middle") {
-    assertEqual(gamegrid::init(3, 3, EMPTY_CELL).findPaths((1,1)).size,
+  test("generatePaths3x3Middle") {
+    assertEqual(gamegrid::init(3, 3, EMPTY_CELL).generatePaths((1,1)).size,
                 8) // verified
   }
 
-  test("findSinglePath") {
+  test("generateSinglePath") {
     val all_paths_from_00 = [[(0,0), (0, 1), (1, 1), (1, 0)],
                              [(0, 0), (1, 0), (1, 1), (0, 1)]]
 
@@ -383,7 +394,7 @@ def testSuite(): Bool = suite("games/zip") {
 
     var res = false
     with minstd(1234);
-    gamegrid::init(2, 2, EMPTY_CELL).findSinglePath((0,0)) match {
+    gamegrid::init(2, 2, EMPTY_CELL).generateSinglePath((0,0)) match {
       case None() => res = false
       case Some(m) => {
         val p = m.extractPath()
