@@ -326,13 +326,16 @@ def gameloop(maze: Maze): Unit / {Gamestate} = {
     // applying input of user
     var old_cursor = cursor // < In case the new coords are out of bound
 
-    val input = do getUserInput(validNextMoves(maze, cursor, current_path))
+    val input = do getUserInput(validNextMoves(maze, cursor, current_path)
+                                .append([InputOption("r", "Reset")]))
 
     input match {
       case "w" => {cursor = cursor.addOntoIfInBound((0, -1), maze)}
       case "a" => {cursor = cursor.addOntoIfInBound((-1, 0), maze)}
       case "s" => {cursor = cursor.addOntoIfInBound((0, 1), maze)}
       case "d" => {cursor = cursor.addOntoIfInBound((1, 0), maze)}
+      case "r" => {cursor = findStart(current_maze)
+                   current_path = []}
       case _ => l.continue()
     }
 
