@@ -111,7 +111,7 @@ def mapWithIndex[A, B](grid: Gamegrid[A]) {f: (Vec2i, A) => B}: Gamegrid[B] / {}
 
 def isInBound[A](grid: Gamegrid[A], v: Vec2i): Bool / {} = {
   (v.x >= 0 && v.x < grid.width &&
-   v.y>= 0 && v.y < grid.height)
+   v.y >= 0 && v.y < grid.height)
 }
 
 

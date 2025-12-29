@@ -2,6 +2,7 @@ import tty
 import io/console
 import bench
 import random
+import control
 
 import src/util/gamestate
 import src/util/gamegrid
@@ -21,12 +22,12 @@ def playinterface() {gameloop: () => Unit / {Gamestate}} = {
 
         var ret = ""
 
-        exhaustively() {
+        loop() {{l: Label} =>
           val input = do readLine()
 
           if (allowed.map{o => o.key}.contains(input) {(a, b) => a == b}) {
             ret = input
-            do stop()
+            l.break()
           }
           else {
             println(Screen::clear()) // In case of invalid input, show the screen again

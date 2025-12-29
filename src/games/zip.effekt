@@ -8,6 +8,7 @@ import test
 import stream
 import tty
 import set
+import control
 
 type Status {
   Pathelement(i: Int)
@@ -57,7 +58,7 @@ def generatePaths(maze: Maze, start: Vec2i): List[Maze] / {} = {
     var curr_pos = start
     var curr_path_length = 0
 
-    exhaustively { // TODO: Transform this to a fixed number of iterations (somehow)
+    loop { // TODO: Transform this to a fixed number of iterations (somehow)
       curr_path_length = curr_path_length + 1
       new_maze = new_maze.setCopy(curr_pos, Cell(Pathelement(curr_path_length)))
 
@@ -98,7 +99,7 @@ def generateSinglePath(maze: Maze, start: Vec2i): Option[Maze] / {random} = {
     var curr_pos = start
     var curr_path_length = 0
 
-    exhaustively { // TODO: Transform this to a fixed number of iterations (somehow)
+    loop { // TODO: Transform this to a fixed number of iterations (somehow)
       curr_path_length = curr_path_length + 1
       new_maze = new_maze.setCopy(curr_pos, Cell(Pathelement(curr_path_length)))
 
@@ -124,7 +125,7 @@ def generateSinglePath(maze: Maze, start: Vec2i): Option[Maze] / {random} = {
       def pickNextCell(available_cells: List[Vec2i]) = {
         var o_maze: Option[Maze] = None()
 
-        shuffle(available_cells).foreach {(v) {l: Control} =>
+        shuffle(available_cells).foreach {(v) {l: Label} =>
           resume(v) match {
             case Some(m) => {
               o_maze = Some(m)
@@ -191,7 +192,7 @@ def hidePath(maze: Maze, keep_factor: Double): Maze /  {random} = {
 def generateGame(size: Int): Maze / {random} = {
   var maze = gamegrid::init(size, size, EMPTY_CELL)
 
-  exhaustively { // TODO: Make this different
+  loop { // TODO: Make this different
     val start = pickRandomElement(list::build(maze.width * maze.height) {i => indexToCoords(i, maze.width)})
 
     generateSinglePath(maze, start) match {
@@ -218,7 +219,7 @@ def isWinning(maze: Maze, path: List[Vec2i]): Bool / {} = {
     var contains_duplicates = false
     var visited: Set[Vec2i] = empty(box vec2i::compare)
 
-    path.foreach {(v) {l: Control} =>
+    path.foreach {(v) {l: Label} =>
 
       // Checking vor duplicates
       if(visited.contains(v)) {
@@ -315,7 +316,7 @@ def gameloop(maze: Maze): Unit / {Gamestate} = {
   var current_maze = maze
   var current_path: List[Vec2i] = [cursor]
 
-  loop {{l: Control} =>
+  loop {{l: Label} =>
     // Sending current board to console
     do updateGrid(generateVisualizedMaze(current_maze, current_path, cursor))
 

@@ -9,6 +9,7 @@ import tty
 import random
 import test
 import set
+import control
 
 
 type Status {
@@ -114,10 +115,11 @@ def placeNQueens(board: Board): List[Board] / {} = {
   }
 }
 
+type Expansion = (Vec2i, Region) // Coordinates and what the target Region would be (if expended)
+
 // TODO: Use sets, or arrays, just not lists
 def expandRegions(board: Board): Unit / {random} = {
-  type Expansion = (Vec2i, Region) // Coordinates and what the target Region would be (if expended)
-  exhaustively {
+  loop {
     // List of all Cells and their coords, that can be spread from
     var spreadableCells: Array[(Vec2i, Cell)]= board.mapWithIndex {(a, b) => (a, b)}
                                                        .grid.filtered {t => t.second.isDefaultCell.not() &&
@@ -209,7 +211,7 @@ def gameloop(board: Board): Unit / {Gamestate} = {
     InputOption("x", "Cross cell")
   ]
 
-  loop() {{l: Control} =>
+  loop() {{l: Label} =>
     // Sending current board to console
     do updateGrid(current_board.mapWithIndex[Cell, String]
                       {(v, c) => if (v.x == cursor.x && v.y == cursor.y) {Escape::BLINK ++ c.reg.color ++ show(c.status) ++ Escape::RESET}
