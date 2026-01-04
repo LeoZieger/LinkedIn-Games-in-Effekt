@@ -52,21 +52,17 @@ def playinterface() {gameloop: () => Unit / {Gamestate}} = {
 }
 
 def main(): Unit =  {
+  with playinterface;
   with minstd(timestamp());
   // play_queens()
-  play_zip()
+  zip::playGame(4, 0.3, 0.5)
 }
 
 
+// TODO: Rewirte same as zip
 def play_queens(): Unit / {random}= {
   with on[RuntimeError].panic() // TODO: Do I need this?
   val b = queens::generateGame(4).hideQueens()
   with playinterface;
   gameloop(b)
-}
-
-def play_zip(): Unit / {random} = {
-    val m = zip::generateGame(6).hidePath(0.3)
-    with playinterface;
-    gameloop(m)
 }

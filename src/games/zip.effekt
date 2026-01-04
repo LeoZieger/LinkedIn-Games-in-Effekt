@@ -34,7 +34,7 @@ def show(c: Cell): String / {} = {
 def show(s: Status): String / {} = {
   s match {
     case Pathelement(i) => show(i)
-    case Empty() => "~"
+    case Empty() => "."
   }
 }
 
@@ -51,6 +51,8 @@ interface Search {
 }
 
 type Maze = Gamegrid[Cell]
+
+type Border = (Vec2i, Vec2i) // determines, if there is a border between two cells
 
 def generatePaths(maze: Maze, start: Vec2i): List[Maze] / {} = {
   try {
@@ -185,8 +187,58 @@ def hidePath(maze: Maze, keep_factor: Double): Maze /  {random} = {
     index = index + 1
   }
 
-
   new_maze
+}
+
+def hideBorders(borders: List[Border], keep_factor: Double): List[Border] / {random} = {
+  var new_borders: List[Border] = []
+
+  borders.foreach {v =>
+    bernoulli(keep_factor)
+    {
+      new_borders = Cons(v, new_borders)
+    }
+    {
+      () // In case of 1 - keep_factor, we dont take this border into the new_borders
+    }
+  }
+
+  new_borders
+}
+
+def generateAllBordersFromPath(maze: Maze, p: List[Vec2i]): List[Border] / {} = {
+
+  // turns a list of nodes to a list of start and end nodes, with the symbol it will have in the extended grid
+  def transformPath(path: List[Vec2i]): List[(Vec2i, Vec2i)] / {} = {
+    path match {
+      case Cons(v1, Cons(v2, rst)) => Cons((v1, v2),
+                                           transformPath(Cons(v2, rst)))
+      case Cons(v1, Nil()) => []
+      case Nil() => []
+    }
+  }
+
+  val p_trans = p.transformPath()
+
+  var borders: List[Border] = []
+
+  maze.mapWithIndex {(v, a) => v} // TODO: Make foreachIndex availabe
+      .grid.foreach {v =>
+            val neighs = maze.surroundingCells4WithIndices(v).map {x => x.first}
+            neighs.foreach {u =>
+              val b = (v, u)
+              // if path contains both cells, we dont place a border
+              if(not(p_trans.contains(b) {(a, b) => (a.first == b.first && a.second == b.second) || (a.first == b.second && a.second == b.first)})) {
+
+                // if borders does not yet contain this edge
+                if(not(borders.contains(b) {(a, b) => (a.first == b.first && a.second == b.second) || (a.first == b.second && a.second == b.first)})) {
+                  borders = Cons(b, borders)
+                }
+              }
+            }
+        }
+
+  borders
 }
 
 def generateGame(size: Int): Maze / {random} = {
@@ -203,6 +255,9 @@ def generateGame(size: Int): Maze / {random} = {
       case None() => ()
     }
   }
+
+  val path = maze.extractPath()
+  val borders = maze.generateAllBordersFromPath(path)
 
   maze
 }
@@ -286,19 +341,44 @@ def findStart(maze: Maze): Vec2i / {} = {
   }
 }
 
-def generateVisualizedMaze(maze: Maze, path: List[Vec2i], cursor: Vec2i): Gamegrid[String] / {} = {
+def generateVisualizedMaze(maze: Maze, path: List[Vec2i], cursor: Vec2i, borders: List[Border]): Gamegrid[String] / {} = {
 
   val max_index_len = maze.grid.foldLeft(0) {(acc, c) => max(acc, show(c).length)}
   val PATH_SYMBOL = "\u001b[31m" ++ "$".padLeft(max_index_len) ++ Escape::RESET // TODO: Find out how to to this reasonable
+  val BORDER_VERT_SYMBOL = "\u001b[34m" ++ "|".padLeft(max_index_len) ++ Escape::RESET // TODO: Find out how to to this reasonable
+  val BORDER_HORIZ_SYMBOL = "\u001b[34m" ++ "-".padLeft(max_index_len) ++ Escape::RESET // TODO: Find out how to to this reasonable
 
-  def transformPath(path: List[Vec2i]): List[(Vec2i, Vec2i, String)] / {} = {
+  // Returns either the vertical or horizontal border, depending on cell relation
+  def orientedBorderSymbol(v: Vec2i, u: Vec2i): String / {} = {
+    if(v.x - u.x != 0) { // cells are next to each other
+      BORDER_VERT_SYMBOL
+    }
+    else if (v.y - u.y != 0) { // cells are above each other
+      BORDER_HORIZ_SYMBOL
+    }
+    else { // cells are diagonal - should not happen! TODO: Fix
+      "?"
+    }
+  }
+
+  // turns a list of nodes to a list of start and end nodes, with the symbol it will have in the extended grid
+  def transformPath(path: List[Vec2i]): List[(Vec2i, Vec2i)] / {} = {
     path match {
-      case Cons(v1, Cons(v2, rst)) => Cons((v1, v2, PATH_SYMBOL),
+      case Cons(v1, Cons(v2, rst)) => Cons((v1, v2),
                                            transformPath(Cons(v2, rst)))
       case Cons(v1, Nil()) => []
       case Nil() => []
     }
   }
+
+  // Transform 2-tuple to 3-tuple
+  def extendTuple[A, B, C](t: (A, B), c: C): (A, B, C) = {
+    (t.first, t.second, c)
+  }
+
+  var connections: List[(Vec2i, Vec2i, String)] = []
+  connections = connections.append(transformPath(path).map {x => x.extendTuple(PATH_SYMBOL)})
+  connections = connections.append(borders.map {x => x.extendTuple(orientedBorderSymbol(x.first, x.second))})
 
   maze.mapWithIndex {(v, c) => {
         var s = show(c).padLeft(max_index_len)
@@ -307,10 +387,10 @@ def generateVisualizedMaze(maze: Maze, path: List[Vec2i], cursor: Vec2i): Gamegr
         if(path.contains(v) {vec2i::equals}) {s = "\u001b[31m" ++ s ++ Escape::RESET}
 
         s}}
-      .extendGridBy1Connecting(" ".padLeft(max_index_len), transformPath(path))
+      .extendGridBy1Connecting(" ".padLeft(max_index_len), connections) // grid is extended, free space is filled with ' ' and cells that are in path are filled with PATH_SYMBOL
 }
 
-def gameloop(maze: Maze): Unit / {Gamestate} = {
+def gameloop(maze: Maze, borders: List[Border]): Unit / {Gamestate} = {
   var cursor = findStart(maze)
 
   var current_maze = maze
@@ -318,7 +398,7 @@ def gameloop(maze: Maze): Unit / {Gamestate} = {
 
   loop {{l: Label} =>
     // Sending current board to console
-    do updateGrid(generateVisualizedMaze(current_maze, current_path, cursor))
+    do updateGrid(generateVisualizedMaze(current_maze, current_path, cursor, borders))
 
     if(current_maze.isWinning(current_path)) {
       l.break()
@@ -357,6 +437,17 @@ def gameloop(maze: Maze): Unit / {Gamestate} = {
 
   """
   )
+}
+
+def playGame(size: Int, path_keep_factor: Double, border_keep_factor: Double): Unit / {random, Gamestate} = {
+  var maze = generateGame(size)
+  var path = maze.extractPath()
+  var borders = maze.generateAllBordersFromPath(path)
+
+  maze = maze.hidePath(path_keep_factor)
+  borders = borders.hideBorders(border_keep_factor)
+
+  gameloop(maze, borders)
 }
 
 def testSuite(): Bool = suite("games/zip") {
@@ -417,5 +508,25 @@ def testSuite(): Bool = suite("games/zip") {
   test("extractPath") {
     assertEqual(Gamegrid(2, 2, fromList([Cell(Pathelement(1)), Cell(Pathelement(2)), Cell(Pathelement(4)), Cell(Pathelement(3))])).extractPath(),
                 [(0, 0), (1, 0), (1, 1), (0, 1)])
+  }
+
+  test("generateAllBorders2x2") {
+    var m = gamegrid::init(2, 2, EMPTY_CELL)
+    var p = [(0, 0), (1, 0), (1, 1), (0, 1)]
+
+    assertEqual(generateAllBordersFromPath(m, p),
+                [((0, 0), (0, 1))])
+  }
+
+  test("generateAllBorders3x3") {
+    var m = gamegrid::init(3, 3, EMPTY_CELL)
+    var p = [(0, 0), (1, 0), (2, 0), (2, 1), (1, 1), (0, 1), (0, 2), (1, 2), (2, 2)]
+
+    assertEqual(generateAllBordersFromPath(m, p),
+                [((2, 1), (2, 2)),
+                 ((1, 1), (1, 2)),
+                 ((1, 0), (1, 1)),
+                 ((0, 0), (0, 1)),
+                 ])
   }
 }
