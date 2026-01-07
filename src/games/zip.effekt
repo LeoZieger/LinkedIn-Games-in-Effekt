@@ -54,6 +54,10 @@ type Maze = Gamegrid[Cell]
 
 type Border = (Vec2i, Vec2i) // determines, if there is a border between two cells
 
+def borderEquals(a: (Vec2i, Vec2i), b: (Vec2i, Vec2i)): Bool / {} = {
+  (a.first == b.first && a.second == b.second) || (a.first == b.second && a.second == b.first) // since (a, b) and (b, a) are the same border
+}
+
 def generatePaths(maze: Maze, start: Vec2i): List[Maze] / {} = {
   try {
     var new_maze = maze.copy()
@@ -228,10 +232,10 @@ def generateAllBordersFromPath(maze: Maze, p: List[Vec2i]): List[Border] / {} = 
             neighs.foreach {u =>
               val b = (v, u)
               // if path contains both cells, we dont place a border
-              if(not(p_trans.contains(b) {(a, b) => (a.first == b.first && a.second == b.second) || (a.first == b.second && a.second == b.first)})) {
+              if(not(p_trans.contains(b) { borderEquals })) {
 
                 // if borders does not yet contain this edge
-                if(not(borders.contains(b) {(a, b) => (a.first == b.first && a.second == b.second) || (a.first == b.second && a.second == b.first)})) {
+                if(not(borders.contains(b) { borderEquals })) {
                   borders = Cons(b, borders)
                 }
               }
@@ -314,7 +318,7 @@ def cleanupPath(path: List[Vec2i]): List[Vec2i] / {} = {
   }
 }
 
-def validNextMoves(maze: Maze, cursor: Vec2i, path: List[Vec2i]): List[InputOption] = {
+def validNextMoves(maze: Maze, cursor: Vec2i, path: List[Vec2i], borders: List[Border]): List[InputOption] = {
   val input_options = [
     (InputOption("w", "Cursor up"), (0, -1)),
     (InputOption("s", "Cursor down"), (0, 1)),
@@ -328,8 +332,9 @@ def validNextMoves(maze: Maze, cursor: Vec2i, path: List[Vec2i]): List[InputOpti
     with on[OutOfBounds].panic();
     val is_stepback = path.size >= 2 && (new_cursor == path.get(path.size - 2))
 
-    maze.isInBound(new_cursor) &&
-    (not(path.contains(new_cursor) {vec2i::equals}) || is_stepback)
+    maze.isInBound(new_cursor) && // cell is in bound of Grid
+    not(borders.contains((cursor, new_cursor)) { borderEquals }) && // no Border between next ceel
+    (not(path.contains(new_cursor) {vec2i::equals}) || is_stepback) // only new cells (not visited yet) or the previous cell (stepback)
   }.map() {t => t.first} // returning only InputOption
 }
 
@@ -341,7 +346,7 @@ def findStart(maze: Maze): Vec2i / {} = {
   }
 }
 
-def generateVisualizedMaze(maze: Maze, path: List[Vec2i], cursor: Vec2i, borders: List[Border]): Gamegrid[String] / {} = {
+def show_maze(maze: Maze, path: List[Vec2i], cursor: Vec2i, borders: List[Border]): Gamegrid[String] / {} = {
 
   val max_index_len = maze.grid.foldLeft(0) {(acc, c) => max(acc, show(c).length)}
   val PATH_SYMBOL = "\u001b[31m" ++ "$".padLeft(max_index_len) ++ Escape::RESET // TODO: Find out how to to this reasonable
@@ -398,7 +403,7 @@ def gameloop(maze: Maze, borders: List[Border]): Unit / {Gamestate} = {
 
   loop {{l: Label} =>
     // Sending current board to console
-    do updateGrid(generateVisualizedMaze(current_maze, current_path, cursor, borders))
+    do updateGrid(show_maze(current_maze, current_path, cursor, borders))
 
     if(current_maze.isWinning(current_path)) {
       l.break()
@@ -407,7 +412,7 @@ def gameloop(maze: Maze, borders: List[Border]): Unit / {Gamestate} = {
     // applying input of user
     var old_cursor = cursor // < In case the new coords are out of bound
 
-    val input = do getUserInput(validNextMoves(maze, cursor, current_path)
+    val input = do getUserInput(validNextMoves(maze, cursor, current_path, borders)
                                 .append([InputOption("r", "Reset")]))
 
     input match {
@@ -528,5 +533,40 @@ def testSuite(): Bool = suite("games/zip") {
                  ((1, 0), (1, 1)),
                  ((0, 0), (0, 1)),
                  ])
+  }
+
+  test("show_maze") { // TODO: Rename function
+    val m = Gamegrid(2, 2, fromList([Cell(Pathelement(1)), Cell(Pathelement(2)),    // 1 2
+                                     Cell(Pathelement(4)), EMPTY_CELL]))            // 4 .
+
+    val p_complete = [(0, 0), (1, 0), (1, 1), (0, 1)]
+    val p_current = [(0, 0), (1, 0)]
+
+    val borders = generateAllBordersFromPath(m, p_complete)
+
+    val s_1 = "\u001b[31m" ++ Escape::BLINK ++ "1" ++ Escape::RESET ++ Escape::RESET
+    val s_2 = "\u001b[31m" ++ "2" ++ Escape::RESET
+    val s_EMPTY = "."
+    val s_4 = "4"
+    val s_$ = "\u001b[31m" ++ "$" ++ Escape::RESET
+    val s_BORDER = "\u001b[34m" ++ "-" ++ Escape::RESET
+
+    assertEqual(show_maze(m, p_current, (0, 0), borders),
+                Gamegrid(5, 5, fromList([" ", " ", " ", " ", " ",
+                                         " ", s_1, s_$, s_2, " ",
+                                         " ", s_BORDER, " ", " ", " ",
+                                         " ", s_4, " ", s_EMPTY, " ",
+                                         " ", " ", " ", " ", " "])))
+               { (a,b) => gamegrid::equals(a, b) } // TODO: Check why this is necessary
+               { a => gamegrid::show(a) }
+  }
+
+  test("isWinning") {
+    val m = Gamegrid(2, 2, fromList([Cell(Pathelement(1)), Cell(Pathelement(2)),    // 1 2
+                                     Cell(Pathelement(4)), Cell(Pathelement(3))]))  // 4 3
+
+    val p = [(0,0), (1,0), (1,1), (0,1)]
+
+    assertTrue(isWinning(m, p))
   }
 }
