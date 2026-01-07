@@ -197,6 +197,13 @@ def addOntoIfInBound(v1: Vec2i, v2: Vec2i, board: Board): Vec2i / {} = {
   }
 }
 
+def show_board(board: Board, cursor: Vec2i): Gamegrid[String] / {} = {
+  board.mapWithIndex[Cell, String]
+                      {(v, c) => if (v.x == cursor.x && v.y == cursor.y) {Escape::BLINK ++ c.reg.color ++ show(c.status) ++ Escape::RESET}
+                                    else {c.reg.color ++ show(c.status) ++ Escape::RESET}
+                      }
+}
+
 def gameloop(board: Board): Unit / {Gamestate} = {
   var cursor = (0, 0)
   var current_board = board
@@ -213,11 +220,7 @@ def gameloop(board: Board): Unit / {Gamestate} = {
 
   loop() {{l: Label} =>
     // Sending current board to console
-    do updateGrid(current_board.mapWithIndex[Cell, String]
-                      {(v, c) => if (v.x == cursor.x && v.y == cursor.y) {Escape::BLINK ++ c.reg.color ++ show(c.status) ++ Escape::RESET}
-                                    else {c.reg.color ++ show(c.status) ++ Escape::RESET}
-                      }
-                  )
+    do updateGrid(show_board(current_board, cursor))
 
     if(current_board.isWinning()) {
       l.break()
