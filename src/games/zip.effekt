@@ -99,7 +99,7 @@ def generatePaths(maze: Maze, start: Vec2i): List[Maze] / {} = {
   }
 }
 
-def generateSinglePath(maze: Maze, start: Vec2i): Option[Maze] / {random} = {
+def generateSinglePath(maze: Maze, start: Vec2i): Option[Maze] / {random} = { // TODO: Unpack Option already here, like Tango
   try {
     var new_maze = maze.copy()
     var curr_pos = start

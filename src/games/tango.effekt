@@ -10,6 +10,8 @@ import test
 import array
 import control
 
+// TODO: Decide for s = status or c = cell as parameters
+
 type Cell {
   Moon();
   Sun();
@@ -30,6 +32,10 @@ def equals(a: Cell, b: Cell): Bool / {} = {
     case (Empty(), Empty()) => true
     case _ => false
   }
+}
+
+def infixEq(a: Cell, b: Cell): Bool / {} = {
+  a.equals(b)
 }
 
 def show(c: Cell): String / {} = {
@@ -61,7 +67,7 @@ interface Search {
   def fail(): Nothing
 }
 
-def placeSymbols(board: Board): List[Board] / {} = {
+def placeAllSymbolCombinations(board: Board): List[Board] / {} = {
   try {
     var new_board = board.copy()
 
@@ -89,20 +95,149 @@ def placeSymbols(board: Board): List[Board] / {} = {
   }
 }
 
-def generateGame(): Board / {random, Exception[RuntimeError]} = {
+def placeOneSymbolCombination(board: Board): Board / {random, Exception[MissingValue]} = {
+  try {
+    var new_board = board.copy()
+
+    [0,1,2,3,4,5].foreach {col =>
+      [0,1,2,3,4,5].foreach {row =>
+        val symbol = do pickSymbol((col, row))
+
+        if(new_board.isValidPlacement((col, row), symbol)) {
+          new_board = new_board.setCopy((col, row), symbol)
+        }
+        else {
+          do fail()
+        }
+      }
+    }
+
+    Some(new_board)
+
+  } with Search {
+    def pickSymbol(v) = {
+      var o_board: Option[Board] = None()
+
+      [Moon(), Sun()].shuffle().foreach{(s) {l: Label} =>
+        resume(s) match {
+          case Some(b) => {
+            o_board = Some(b)
+            l.break()
+          }
+          case None() => l.continue()
+        }
+      }
+
+      o_board
+    }
+
+    def fail() = {None()}
+  }
+  .value
+}
+
+def generateGame(): Board / {random} = {
   var board = gamegrid::init(6, 6, Empty())
 
-  var validBoards = board.placeSymbols()
+  with on[MissingValue].panic()
+  board = board.placeOneSymbolCombination()
 
-  if(validBoards.isEmpty) {
-    do raise(RuntimeError(), "Could not generate any boards!")
-  }
-
-  board = pickRandomElement(validBoards)
   board
 }
 
+// TODO: Test
+def threeInARow(board: Board, row: Int): Bool / {} = {
+  var last_symbol = Empty()
+  var n_repeating = 0
+
+  var tree_in_a_row = false
+
+  board.horizontalCellsOf(row).foreach {(s) {l: Label} =>
+    if(n_repeating == 3) {
+      tree_in_a_row = true
+      l.break()
+    }
+
+    s match {
+
+      case Moon() => {
+        if (last_symbol == Moon()) {
+          n_repeating = n_repeating + 1
+        }
+        else {
+          n_repeating = 1
+          last_symbol = Moon()
+        }
+      }
+
+      case Sun() => {
+        if (last_symbol == Sun()) {
+          n_repeating = n_repeating + 1
+        }
+        else {
+          n_repeating = 1
+          last_symbol = Sun()
+        }
+      }
+
+      case Empty() => {
+        n_repeating = 0
+        last_symbol = Empty()
+      }
+    }
+  }
+
+  tree_in_a_row
+}
+
+// TODO: Test
+def threeInACol(board: Board, col: Int): Bool / {} = {
+  var last_symbol = Empty()
+  var n_repeating = 0
+
+  var tree_in_a_col = false
+
+  board.verticalCellsOf(col).foreach {(s) {l: Label} =>
+    if(n_repeating == 3) {
+      tree_in_a_col = true
+      l.break()
+    }
+
+    s match {
+
+      case Moon() => {
+        if (last_symbol == Moon()) {
+          n_repeating = n_repeating + 1
+        }
+        else {
+          n_repeating = 1
+          last_symbol = Moon()
+        }
+      }
+
+      case Sun() => {
+        if (last_symbol == Sun()) {
+          n_repeating = n_repeating + 1
+        }
+        else {
+          n_repeating = 1
+          last_symbol = Sun()
+        }
+      }
+
+      case Empty() => {
+        n_repeating = 0
+        last_symbol = Empty()
+      }
+    }
+  }
+
+  tree_in_a_col
+}
+
 // TODO: Check constraints
+// TODO: Refactor
+// TODO: Improve
 def isValidPlacement(board: Board, v: Vec2i, c: Cell): Bool / {} = {
   // Checking all vertical cells how many symbols there are
   var vert_num_suns = board.verticalCellsExcluding(v).count {c => c.equals(Sun())}
@@ -121,20 +256,40 @@ def isValidPlacement(board: Board, v: Vec2i, c: Cell): Bool / {} = {
     case _ => ()
   }
 
-  vert_num_moons <= 3 && horiz_num_moons <= 3 && vert_num_suns <= 3 && horiz_num_suns <= 3
+  val new_board = board.setCopy(v, c)
+
+  vert_num_moons <= 3 && horiz_num_moons <= 3 &&
+  vert_num_suns <= 3 && horiz_num_suns <= 3 &&
+  not(new_board.threeInACol(v.x)) && not(new_board.threeInARow(v.y))
 }
 
+// TODO: Improve performance
 def isWinning(board: Board, constraints: List[Constraint]): Bool / {} = {
   var isValid = true
 
   // Checking about number of moons and suns
   [0,1,2,3,4,5].foreach {(c) {l: Label} =>
-    // TODO: Dont iterate 6 * 6 * 6 * 6 times ...
     val num_suns = board.verticalCellsOf(c).count {c => c.equals(Sun())}
     val num_moons = board.verticalCellsOf(c).count {c => c.equals(Moon())}
     val num_empty = board.verticalCellsOf(c).count {c => c.equals(Empty())}
 
     if(num_suns != 3 || num_moons != 3 || num_empty > 0) {
+      isValid = false
+      l.break()
+    }
+  }
+
+  // Checking for 3 in a col
+  [0,1,2,3,4,5].foreach {(c) {l: Label} =>
+    if(board.threeInACol(c)) {
+      isValid = false
+      l.break()
+    }
+  }
+
+  // Checking for 3 in a row
+  [0,1,2,3,4,5].foreach {(r) {l: Label} =>
+    if(board.threeInARow(r)) {
       isValid = false
       l.break()
     }
@@ -221,6 +376,17 @@ def testSuite(): Bool = suite("games/tango") {
     assertFalse(b.isWinning(constraints))
   }
 
+  test("isNotWinning3AfterAnother") {
+    val b = Gamegrid(6, 6, fromList([Moon(), Moon(), Moon(), Sun(), Sun(), Sun(), // Is not valid since 3 in a row
+                                     Moon(), Moon(), Moon(), Sun(), Sun(), Sun(),
+                                     Moon(), Moon(), Moon(), Sun(), Sun(), Sun(),
+                                     Sun(), Sun(), Sun(), Moon(), Moon(), Moon(),
+                                     Sun(), Sun(), Sun(), Moon(), Moon(), Moon(),
+                                     Sun(), Sun(), Sun(), Moon(), Moon(), Moon()]))
+
+    assertFalse(b.isWinning([]))
+  }
+
   test("isValidPlacement") {
     val b = gamegrid::init(6, 6, Empty())
 
@@ -238,9 +404,21 @@ def testSuite(): Bool = suite("games/tango") {
     assertFalse(b.isValidPlacement((0, 1), Moon()))
   }
 
+  test("isNotValidPlacement3AfterAnother") {
+    val b = Gamegrid(6, 6, fromList([Empty(), Empty(), Empty(), Empty(), Empty(), Empty(),
+                                     Moon(), Empty(), Empty(), Empty(), Empty(), Empty(),
+                                     Moon(), Empty(), Empty(), Empty(), Empty(), Empty(),
+                                     Empty(), Empty(), Empty(), Empty(), Empty(), Empty(), // Is not valid since 3 in a row
+                                     Empty(), Empty(), Empty(), Empty(), Empty(), Empty(),
+                                     Empty(), Empty(), Empty(), Empty(), Empty(), Empty()]))
+
+    assertFalse(b.isValidPlacement((0, 3), Moon()))
+  }
+
+
   test("allGamesValid") {
     val b = gamegrid::init(6, 6, Empty())
-    val all_boards = placeSymbols(b)
+    val all_boards = placeAllSymbolCombinations(b)
 
     assertTrue(all_boards.all {b => b.isWinning([])})
   }
