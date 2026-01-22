@@ -8,6 +8,7 @@ import src/util/gamestate
 import src/util/gamegrid
 import src/games/queens
 import src/games/zip
+import src/games/tango
 
 
 def playinterface() {gameloop: () => Unit / {Gamestate}} = {
@@ -55,7 +56,8 @@ def main(): Unit =  {
   with playinterface;
   with minstd(timestamp());
   // play_queens()
-  zip::playGame(4, 0.3, 0.5)
+  // zip::playGame(5, 0.3, 0.5)
+  tango::playGame()
 }
 
 

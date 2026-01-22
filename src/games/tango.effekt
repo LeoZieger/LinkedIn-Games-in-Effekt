@@ -1,0 +1,247 @@
+module src/games/tango
+
+import src/util/gamegrid
+import src/util/vec2i
+import src/util/randomutil
+import src/util/gamestate
+
+import random
+import test
+import array
+import control
+
+type Cell {
+  Moon();
+  Sun();
+  Empty();
+}
+
+def isEmptyCell(c: Cell): Bool / {} = {
+  c match {
+    case Empty() => true
+    case _ => false
+  }
+}
+
+def equals(a: Cell, b: Cell): Bool / {} = {
+  (a, b) match {
+    case (Moon(), Moon()) => true
+    case (Sun(), Sun()) => true
+    case (Empty(), Empty()) => true
+    case _ => false
+  }
+}
+
+def show(c: Cell): String / {} = {
+  c match {
+    case Moon() => "M"
+    case Sun() => "S"
+    case Empty() => "."
+  }
+}
+
+type Board = Gamegrid[Cell] // TODO: Maybe use Cell record? If not, change in zip
+
+type ConstraintType {
+  Equal();
+  Diff();
+}
+
+record Constraint(from: Vec2i, to: Vec2i, typ: ConstraintType)
+
+def satisfies(board: Board, constr: Constraint): Bool / {} = {
+  constr.typ match {
+    case Equal() => equals(board.get(constr.from), board.get(constr.to))
+    case Diff() => not(equals(board.get(constr.from), board.get(constr.to)))
+  }
+}
+
+interface Search {
+  def pickSymbol(v: (Int, Int)): Cell
+  def fail(): Nothing
+}
+
+def placeSymbols(board: Board): List[Board] / {} = {
+  try {
+    var new_board = board.copy()
+
+    [0,1,2,3,4,5].foreach {col =>
+      [0,1,2,3,4,5].foreach {row =>
+        val symbol = do pickSymbol((col, row))
+
+        if(new_board.isValidPlacement((col, row), symbol)) {
+          new_board = new_board.setCopy((col, row), symbol)
+        }
+        else {
+          do fail()
+        }
+      }
+    }
+
+    [new_board]
+
+  } with Search {
+    def pickSymbol(v) = {
+      resume(Moon()).append(resume(Sun()))
+    }
+
+    def fail() = {[]}
+  }
+}
+
+def generateGame(): Board / {random, Exception[RuntimeError]} = {
+  var board = gamegrid::init(6, 6, Empty())
+
+  var validBoards = board.placeSymbols()
+
+  if(validBoards.isEmpty) {
+    do raise(RuntimeError(), "Could not generate any boards!")
+  }
+
+  board = pickRandomElement(validBoards)
+  board
+}
+
+// TODO: Check constraints
+def isValidPlacement(board: Board, v: Vec2i, c: Cell): Bool / {} = {
+  // Checking all vertical cells how many symbols there are
+  var vert_num_suns = board.verticalCellsExcluding(v).count {c => c.equals(Sun())}
+  var vert_num_moons = board.verticalCellsExcluding(v).count {c => c.equals(Moon())}
+
+  // Checking all horizontal cells how many symbols there are
+  var horiz_num_suns = board.horizontalCellsExcluding(v).count {c => c.equals(Sun())}
+  var horiz_num_moons = board.horizontalCellsExcluding(v).count {c => c.equals(Moon())}
+
+  // Adding the symbol that would be placed
+  c match {
+    case Moon() => {vert_num_moons = vert_num_moons + 1
+                    horiz_num_moons = horiz_num_moons + 1}
+    case Sun() => {vert_num_suns = vert_num_suns + 1
+                    horiz_num_suns = horiz_num_suns + 1}
+    case _ => ()
+  }
+
+  vert_num_moons <= 3 && horiz_num_moons <= 3 && vert_num_suns <= 3 && horiz_num_suns <= 3
+}
+
+def isWinning(board: Board, constraints: List[Constraint]): Bool / {} = {
+  var isValid = true
+
+  // Checking about number of moons and suns
+  [0,1,2,3,4,5].foreach {(c) {l: Label} =>
+    // TODO: Dont iterate 6 * 6 * 6 * 6 times ...
+    val num_suns = board.verticalCellsOf(c).count {c => c.equals(Sun())}
+    val num_moons = board.verticalCellsOf(c).count {c => c.equals(Moon())}
+    val num_empty = board.verticalCellsOf(c).count {c => c.equals(Empty())}
+
+    if(num_suns != 3 || num_moons != 3 || num_empty > 0) {
+      isValid = false
+      l.break()
+    }
+  }
+
+  // Checking if all constraints match
+  constraints.foreach {(constr) {l: Label} =>
+    if(not(board.satisfies(constr))) {
+      isValid = false
+      l.break()
+    }
+  }
+
+  isValid
+}
+
+def showBoard(board: Board): Gamegrid[String] / {} = {
+  board.map {show}
+}
+
+def gameloop(board: Board): Unit / {Gamestate} = {
+  do updateGrid(showBoard(board))
+}
+
+def playGame(): Unit / {random, Gamestate} = {
+  with on[RuntimeError].panic();
+
+  var board = gamegrid::init(6, 6, Empty())
+  board = generateGame()
+
+  gameloop(board)
+}
+
+def testSuite(): Bool = suite("games/tango") {
+
+  test("isWinningNoConstraints") {
+    val b = Gamegrid(6, 6, fromList([Moon(), Sun(), Sun(), Moon(), Sun(), Moon(),
+                                     Sun(), Moon(), Sun(), Sun(), Moon(), Moon(),
+                                     Sun(), Moon(), Moon(), Sun(), Moon(), Sun(),
+                                     Moon(), Sun(), Moon(), Moon(), Sun(), Sun(),
+                                     Sun(), Moon(), Sun(), Sun(), Moon(), Moon(),
+                                     Moon(), Sun(), Moon(), Moon(), Sun(), Sun()]))
+
+    assertTrue(b.isWinning([]))
+  }
+
+  test("isNotWinningNoConstraints") {
+    val b = Gamegrid(6, 6, fromList([Moon(), Sun(), Sun(), Moon(), Sun(), Moon(),
+                                     Sun(), Moon(), Sun(), Sun(), Moon(), Moon(),
+                                     Moon(), Moon(), Moon(), Sun(), Moon(), Sun(), // One moon too many
+                                     Moon(), Sun(), Moon(), Moon(), Sun(), Sun(),
+                                     Sun(), Moon(), Sun(), Sun(), Moon(), Moon(),
+                                     Moon(), Sun(), Moon(), Moon(), Sun(), Sun()]))
+
+    assertFalse(b.isWinning([]))
+  }
+
+  test("isWinningWithConstraints") {
+    val b = Gamegrid(6, 6, fromList([Moon(), Sun(), Sun(), Moon(), Sun(), Moon(),
+                                     Sun(), Moon(), Sun(), Sun(), Moon(), Moon(),
+                                     Sun(), Moon(), Moon(), Sun(), Moon(), Sun(),
+                                     Moon(), Sun(), Moon(), Moon(), Sun(), Sun(),
+                                     Sun(), Moon(), Sun(), Sun(), Moon(), Moon(),
+                                     Moon(), Sun(), Moon(), Moon(), Sun(), Sun()]))
+
+    val constraints = [Constraint((0,0), (1,0), Diff()),
+                       Constraint((0, 1), (0, 2), Equal()),
+                       Constraint((5, 0), (5, 1), Equal())]
+
+    assertTrue(b.isWinning(constraints))
+  }
+
+  test("isNotWinningWithConstraints") {
+    val b = Gamegrid(6, 6, fromList([Moon(), Sun(), Sun(), Moon(), Sun(), Moon(),
+                                     Sun(), Moon(), Sun(), Sun(), Moon(), Moon(),
+                                     Sun(), Moon(), Moon(), Sun(), Moon(), Sun(),
+                                     Moon(), Sun(), Moon(), Moon(), Sun(), Sun(),
+                                     Sun(), Moon(), Sun(), Sun(), Moon(), Moon(),
+                                     Moon(), Sun(), Moon(), Moon(), Sun(), Sun()]))
+
+    val constraints = [Constraint((0,1), (0,2), Diff()), // Is not satisfied
+                       Constraint((5, 0), (5, 1), Equal())]
+
+    assertFalse(b.isWinning(constraints))
+  }
+
+  test("isValidPlacement") {
+    val b = gamegrid::init(6, 6, Empty())
+
+    assertTrue(b.isValidPlacement((1, 1), Moon()))
+  }
+
+  test("isNotValidPlacement") {
+    val b = Gamegrid(6, 6, fromList([Moon(), Sun(), Sun(), Moon(), Sun(), Moon(),
+                                     Sun(), Moon(), Sun(), Sun(), Moon(), Moon(), // placing Moon to (0, 1)
+                                     Sun(), Moon(), Moon(), Sun(), Moon(), Sun(),
+                                     Moon(), Sun(), Moon(), Moon(), Sun(), Sun(),
+                                     Sun(), Moon(), Sun(), Sun(), Moon(), Moon(),
+                                     Moon(), Sun(), Moon(), Moon(), Sun(), Sun()]))
+
+    assertFalse(b.isValidPlacement((0, 1), Moon()))
+  }
+
+  test("allGamesValid") {
+    val b = gamegrid::init(6, 6, Empty())
+    val all_boards = placeSymbols(b)
+
+    assertTrue(all_boards.all {b => b.isWinning([])})
+  }
+}

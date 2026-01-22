@@ -9,6 +9,7 @@ import src/util/vec2i
 import src/util/randomutil
 import src/games/queens
 import src/games/zip
+import src/games/tango
 
 def main(): Unit = {
   val testResults =
@@ -16,7 +17,8 @@ def main(): Unit = {
       vec2i::testSuite(),
       randomutil::testSuite(),
       queens::testSuite(),
-      zip::testSuite()
+      zip::testSuite(),
+      tango::testSuite()
     ]
 
   val allTestsSucceeded = testResults.all { res => res }

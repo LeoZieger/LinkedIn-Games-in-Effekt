@@ -204,6 +204,31 @@ def extendGridBy1Connecting[A](grid: Gamegrid[A], default: A, connections: List[
   new_grid
 }
 
+// TODO: Test
+def verticalCellsOf[A](grid: Gamegrid[A], x: Int): List[A] / {} = {
+  (list::collect[Int] {range(0, grid.height)})
+  .map {y => grid.get((x, y))}
+}
+
+// TODO: Test
+def horizontalCellsOf[A](grid: Gamegrid[A], y: Int): List[A] / {} = {
+  (list::collect[Int] {range(0, grid.width)})
+  .map {x => grid.get((x, y))}
+}
+
+// TODO: Test
+def verticalCellsExcluding[A](grid: Gamegrid[A], v: Vec2i): List[A] / {} = {
+  (list::collect[Int] {range(0, v.y)}).append(
+   list::collect[Int] {range(v.y + 1, grid.height)})
+  .map {y => grid.get((v.x, y))}
+}
+
+// TODO: Test
+def horizontalCellsExcluding[A](grid: Gamegrid[A], v: Vec2i): List[A] / {} = {
+  (list::collect[Int] {range(0, v.x)}).append(
+   list::collect[Int] {range(v.x + 1, grid.width)})
+  .map {x => grid.get((x, v.y))}
+}
 
 def equals(a: Gamegrid[String], b: Gamegrid[String]): Bool / {} = {
   a.width == b.width && a.height == b.height && array::equals(a.grid, b.grid) {(s1, s2) => s1 == s2}
@@ -365,5 +390,25 @@ def testSuite(): Bool = suite("util/gamegrid") {
   test("copy") {
     assertEqual(init(3, 3, "A").copy(),
                 init(3, 3, "A"))
+  }
+
+  test("verticalCellsOf") {
+    assertEqual(initWith(3, 3) {i => coordsToIndex(i, 3)}.verticalCellsOf(1),
+                [1, 4, 7])
+  }
+
+  test("verticalCellsExcluding") {
+    assertEqual(initWith(3, 3) {i => coordsToIndex(i, 3)}.verticalCellsExcluding((1, 1)),
+                [1, 7])
+  }
+
+  test("horizontalCellsOf") {
+    assertEqual(initWith(3, 3) {i => coordsToIndex(i, 3)}.horizontalCellsOf(1),
+                [3, 4, 5])
+  }
+
+  test("horizontalCellsExcluding") {
+    assertEqual(initWith(3, 3) {i => coordsToIndex(i, 3)}.horizontalCellsExcluding((1, 1)),
+                [3, 5])
   }
 }

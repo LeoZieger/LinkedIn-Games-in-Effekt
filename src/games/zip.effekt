@@ -260,12 +260,14 @@ def generateGame(size: Int): Maze / {random} = {
     }
   }
 
+  // TODO: Why?
   val path = maze.extractPath()
   val borders = maze.generateAllBordersFromPath(path)
 
   maze
 }
 
+// TODO: Maybe check for borders
 def isWinning(maze: Maze, path: List[Vec2i]): Bool / {} = {
   with on[MissingValue].panic;
   if(path.size < maze.width * maze.height || maze.get(path.last).isEmptyCell()) {
