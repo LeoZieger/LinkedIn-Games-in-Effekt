@@ -9,6 +9,7 @@ import random
 import test
 import array
 import control
+import tty
 
 // TODO: Decide for s = status or c = cell as parameters
 
@@ -40,8 +41,8 @@ def infixEq(a: Cell, b: Cell): Bool / {} = {
 
 def show(c: Cell): String / {} = {
   c match {
-    case Moon() => "M"
-    case Sun() => "S"
+    case Moon() => "⏾"
+    case Sun() => "𖤓"
     case Empty() => "."
   }
 }
@@ -53,7 +54,27 @@ type ConstraintType {
   Diff();
 }
 
+def equals(a: ConstraintType, b: ConstraintType): Bool / {} = {
+  (a, b) match {
+    case (Equal(), Equal()) => true
+    case (Diff(), Diff()) => true
+    case _ => false
+  }
+}
+
+def show(constr: ConstraintType): String / {} = {
+  constr match {
+    case Equal() => "="
+    case Diff() => "x"
+  }
+}
+
 record Constraint(from: Vec2i, to: Vec2i, typ: ConstraintType)
+
+def constraintEquals(a: Constraint, b: Constraint): Bool / {} = {
+  // (1,0) -> (0, 1) is the same as (0, 1) -> (1, 0) (if the type is the same)
+  equals(a.typ, b.typ) && ((a.from == b.from && a.to == b.to) || (a.from == b.to && a.to == b.from))
+}
 
 def satisfies(board: Board, constr: Constraint): Bool / {} = {
   constr.typ match {
@@ -145,7 +166,7 @@ def generateGame(): Board / {random} = {
   board
 }
 
-// TODO: Test
+// TODO: Refactor
 def threeInARow(board: Board, row: Int): Bool / {} = {
   var last_symbol = Empty()
   var n_repeating = 0
@@ -190,7 +211,7 @@ def threeInARow(board: Board, row: Int): Bool / {} = {
   tree_in_a_row
 }
 
-// TODO: Test
+// TODO: Refactor
 def threeInACol(board: Board, col: Int): Bool / {} = {
   var last_symbol = Empty()
   var n_repeating = 0
@@ -306,21 +327,129 @@ def isWinning(board: Board, constraints: List[Constraint]): Bool / {} = {
   isValid
 }
 
-def showBoard(board: Board): Gamegrid[String] / {} = {
-  board.map {show}
+def showBoard(board: Board, cursor: Vec2i, constraints: List[Constraint]): Gamegrid[String] / {} = {
+
+  def transformConstraint(constr: Constraint): (Vec2i, Vec2i, String) / {} = {
+    (constr.from, constr.to, show(constr.typ))
+  }
+
+  val connections = constraints.map {transformConstraint }
+
+  board.mapWithIndex {(v, s) =>
+    if (v == cursor) {
+      Escape::BLINK ++ show(s) ++ Escape::RESET
+    }
+    else {
+      show(s)
+    }
+  }.extendGridBy1Connecting(" ", connections)
 }
 
-def gameloop(board: Board): Unit / {Gamestate} = {
-  do updateGrid(showBoard(board))
+def gameloop(board: Board, constraints: List[Constraint]): Unit / {Gamestate} = {
+  var cursor = (0, 0)
+  var current_board = board
+
+  val input_options = [
+    InputOption("w", "Cursor up"),
+    InputOption("s", "Cursor down"),
+    InputOption("a", "Cursor left"),
+    InputOption("d", "Cursor right"),
+    InputOption("t", "Place 𖤓"),
+    InputOption("n", "Place ⏾"),
+    InputOption("x", "Reset cell"),
+  ]
+
+  loop() {{l: Label} =>
+    // Sending current board to console
+    do updateGrid(showBoard(current_board, cursor, constraints))
+
+    if(current_board.isWinning(constraints)) {
+      l.break()
+    }
+
+    val input = do getUserInput(input_options)
+
+    input match {
+      case "w" => cursor = cursor.addOntoIfInBound((0,-1), current_board)
+      case "a" => cursor = cursor.addOntoIfInBound((-1,0), current_board)
+      case "s" => cursor = cursor.addOntoIfInBound((0,1), current_board)
+      case "d" => cursor = cursor.addOntoIfInBound((1,0), current_board)
+      case "t" => current_board.set(cursor, Sun())
+      case "n" => current_board.set(cursor, Moon())
+      case "x" => current_board.set(cursor, Empty())
+      case _ => l.continue()
+    }
+  }
+
+  do gameWon(
+    """
+ __     __                                 _______                        _
+ \ \   / /                                |__   __|                      | |
+  \ \_/ /__  _   _  __      _____  _ __      | | __ _ _ __   __ _  ___   | |
+   \   / _ \| | | | \ \ /\ / / _ \| '_ \     | |/ _` | '_ \ / _` |/ _ \  | |
+    | | (_) | |_| |  \ V  V / (_) | | | |    | | (_| | | | | (_| | (_) | |_|
+    |_|\___/ \__,_|   \_/\_/ \___/|_| |_|    |_|\__,_|_| |_|\__, |\___/  (_)
+                                                             __/ |
+                                                            |___/
+
+    """
+    )
+}
+
+def hideSymbols(board: Board, symbol_keep_factor: Double): Board / {random} = {
+  board.map{s =>
+    var new_symbol = s
+    bernoulli(symbol_keep_factor)
+    {
+      () // we keep the symbol
+    }
+    {
+      new_symbol = Empty() // we hide the symbol (make it Empty)
+    }
+    new_symbol
+  }
+}
+
+// TODO: Test
+// TODO: Refactor, maybe use sets
+def generateAllConstraints(board: Board): List[Constraint] / {} = {
+  var constraints: List[Constraint] = []
+
+  board.grid.foreachIndex {(i, s) =>
+    val v = indexToCoords(i, board.width)
+    board.surroundingCells4WithIndices(v).foreach {t =>
+      val u = t.first // coords of neighbour
+      val n = t.second // symbol of neighour
+
+      if(n == s) { // if the neighbour is the same symbol
+        val c = Constraint(v, u, Equal())
+
+        if (not(constraints.contains(c) {constraintEquals })) {
+          constraints = Cons(c, constraints)
+        }
+      }
+      else { // if the neighbour is a different symbol
+        val c = Constraint(v, u, Diff())
+
+        if (not(constraints.contains(c) {constraintEquals })) {
+          constraints = Cons(c, constraints)
+        }
+      }
+    }
+  }
+
+  constraints
 }
 
 def playGame(): Unit / {random, Gamestate} = {
   with on[RuntimeError].panic();
 
-  var board = gamegrid::init(6, 6, Empty())
-  board = generateGame()
+  var board = generateGame()
+  var constraints = generateAllConstraints(board)
 
-  gameloop(board)
+  board = board.hideSymbols(0.8)
+
+  gameloop(board, constraints)
 }
 
 def testSuite(): Bool = suite("games/tango") {
@@ -415,11 +544,75 @@ def testSuite(): Bool = suite("games/tango") {
     assertFalse(b.isValidPlacement((0, 3), Moon()))
   }
 
-
   test("allGamesValid") {
     val b = gamegrid::init(6, 6, Empty())
     val all_boards = placeAllSymbolCombinations(b)
 
     assertTrue(all_boards.all {b => b.isWinning([])})
+  }
+
+  test("constraintEquals") {
+    val a = Constraint((1, 0), (0, 1), Equal())
+    val b = Constraint((1, 0), (0, 1), Equal())
+  }
+
+  test("constraintEquals2") {
+    val a = Constraint((1, 0), (0, 1), Equal())
+    val b = Constraint((0, 1), (1, 0), Equal())
+  }
+
+  test("constraintNotEquals") {
+    val a = Constraint((1, 0), (1, 0), Equal())
+    val b = Constraint((1, 0), (1, 0), Diff())
+  }
+
+  test("threeInACol") {
+    val b = Gamegrid(6, 6, fromList([Moon(), Empty(), Empty(), Empty(), Empty(), Empty(),
+                                     Moon(), Empty(), Empty(), Empty(), Empty(), Empty(),
+                                     Moon(), Empty(), Empty(), Empty(), Empty(), Empty(),
+                                     Empty(), Empty(), Empty(), Empty(), Empty(), Empty(),
+                                     Empty(), Empty(), Empty(), Empty(), Empty(), Empty(),
+                                     Empty(), Empty(), Empty(), Empty(), Empty(), Empty()]))
+    assertTrue(b.threeInACol(0))
+  }
+
+  test("notThreeInACol") {
+    val b = Gamegrid(6, 6, fromList([Moon(), Empty(), Empty(), Empty(), Empty(), Empty(),
+                                     Moon(), Empty(), Empty(), Empty(), Empty(), Empty(),
+                                     Empty(), Empty(), Empty(), Empty(), Empty(), Empty(),
+                                     Moon(), Empty(), Empty(), Empty(), Empty(), Empty(),
+                                     Empty(), Empty(), Empty(), Empty(), Empty(), Empty(),
+                                     Empty(), Empty(), Empty(), Empty(), Empty(), Empty()]))
+    assertFalse(b.threeInACol(0))
+  }
+
+  test("threeInAColEmpty") {
+    val b = Gamegrid(6, 6, fromList([Moon(), Empty(), Empty(), Empty(), Empty(), Empty(),
+                                     Moon(), Empty(), Empty(), Empty(), Empty(), Empty(),
+                                     Moon(), Empty(), Empty(), Empty(), Empty(), Empty(),
+                                     Empty(), Empty(), Empty(), Empty(), Empty(), Empty(),
+                                     Empty(), Empty(), Empty(), Empty(), Empty(), Empty(),
+                                     Empty(), Empty(), Empty(), Empty(), Empty(), Empty()]))
+    assertFalse(b.threeInACol(1))
+  }
+
+  test("threeInARow") {
+    val b = Gamegrid(6, 6, fromList([Empty(), Moon(), Moon(), Moon(), Empty(), Empty(),
+                                     Empty(), Empty(), Empty(), Empty(), Empty(), Empty(),
+                                     Empty(), Empty(), Empty(), Empty(), Empty(), Empty(),
+                                     Empty(), Empty(), Empty(), Empty(), Empty(), Empty(),
+                                     Empty(), Empty(), Empty(), Empty(), Empty(), Empty(),
+                                     Empty(), Empty(), Empty(), Empty(), Empty(), Empty()]))
+    assertTrue(b.threeInARow(0))
+  }
+
+  test("notThreeInARow") {
+    val b = Gamegrid(6, 6, fromList([Empty(), Moon(), Moon(), Sun(), Moon(), Empty(),
+                                     Empty(), Empty(), Empty(), Empty(), Empty(), Empty(),
+                                     Empty(), Empty(), Empty(), Empty(), Empty(), Empty(),
+                                     Empty(), Empty(), Empty(), Empty(), Empty(), Empty(),
+                                     Empty(), Empty(), Empty(), Empty(), Empty(), Empty(),
+                                     Empty(), Empty(), Empty(), Empty(), Empty(), Empty()]))
+    assertFalse(b.threeInARow(0))
   }
 }
