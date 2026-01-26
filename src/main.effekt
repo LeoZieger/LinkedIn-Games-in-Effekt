@@ -55,21 +55,15 @@ def playinterface[A, C]() {gameloop: () => Unit / {Gamestate[A, C]}} = {
 def main(): Unit =  {
   with minstd(timestamp());
 
-
   // with playinterface[zip::Cell, Unit];
   // with zip::solve(400);
   // zip::playGame(5, 0.3, 0.5)
 
   // with playinterface[tango::Cell, ConstraintType];
-  with tango::solve(100);
-  tango::playGame(0.2, 0.4)
-}
+  // with tango::solve(100);
+  // tango::playGame(0.2, 0.4)
 
-
-// TODO: Rewirte same as zip
-def play_queens(): Unit / {random}= {
-  with on[RuntimeError].panic() // TODO: Do I need this?
-  val b = queens::generateGame(4).hideQueens()
+  // with queens::solve(200);
   with playinterface[queens::Cell, Unit];
-  gameloop(b)
+  queens::playGame(6)
 }

@@ -10,12 +10,27 @@ import random
 import test
 import set
 import control
+import io/console
+import io/time
 
 
 type Status {
   Queen();
   Empty();
   Crossed();
+}
+
+def equals(a: Status, b: Status): Bool / {} = {
+  (a, b) match {
+    case (Queen(), Queen()) => true
+    case (Empty(), Empty()) => true
+    case (Crossed(), Crossed()) => true
+    case _ => false
+  }
+}
+
+def infixEq(a: Status, b: Status): Bool / {} = {
+  a.equals(b)
 }
 
 def show(s: Status): String / {} = {
@@ -171,7 +186,7 @@ def isWinning(board: Board): Bool / {} = {
     }
   }
 
-  val allQueensValid = board.mapWithIndex{(v, c) => c.isQueenCell.not() ||
+  val allQueensValid = board.mapWithIndex{(v, c) => not(c.isQueenCell) ||
                                                        (c.isQueenCell && board.isValidQueenPlacement(v))}
                             .grid.all {b => b} // TODO: Fix
 
@@ -253,6 +268,142 @@ def gameloop(board: Board): Unit / {Gamestate[Cell, Unit]} = {
     )
 }
 
+// just colours the regions but keeps the status
+def transferRegions(from: Board, to: Board): Board / {} = {
+  var new_to = to.copy()
+
+  from.mapWithIndex {(v, c) => (v, c)}.grid.foreach {t =>
+    val v = t.first
+    val reg = t.second.reg
+
+    val c = new_to.get(v)
+
+    new_to.set(v, Cell(c.status, reg)) // copy cell, but change region
+  }
+
+  new_to
+}
+
+// TODO: Test
+def applyPlacementsAtOnce(board: Board, placements: List[(Vec2i, Status)]): Board / {} = {
+  var new_board = board.copy()
+
+  placements.foreach {p =>
+    val v = p.first
+    val s = p.second
+    new_board.placeStatus(s, v)
+  }
+
+  new_board
+}
+
+def findPlacementsByBruteForce(board: Board): List[(Vec2i, Status)] / {} = {
+
+  var boards = board.placeNQueens()
+  boards = boards.filter {b => transferRegions(board, b).isWinning}
+
+  with on[MissingValue].panic()
+  val filled_board = boards.head()
+
+  var placements: List[(Vec2i, Status)] = []
+
+  // Calculating diff between boards := Placements that have to be made
+  filled_board.mapWithIndex {(v, c) => (v, c)}.grid.foreach {t =>
+
+    val v = t.first
+    val c = t.second
+
+    val old_c = board.get(v)
+
+    if(old_c.status == Empty() && not(c.status == Empty())) { // if this was empty before
+      placements = Cons((v, c.status), placements) // adding diff to placements
+    }
+  }
+
+  placements
+}
+
+def findPlacements(board: Board): List[(Vec2i, Status)] / {} = {
+  // TODO: Do something smarter here
+  val placements = findPlacementsByBruteForce(board)
+
+  placements
+}
+
+def solve(wait_time: Int) {gameloop: () => Unit / {Gamestate[Cell, Unit]}} = {
+  var last_viz_grid: Gamegrid[String] = init(1, 1, "") // Dummy value // TODO: Give function to vizualize the grid..
+  var last_grid: Gamegrid[Cell] = init(1, 1, DEFAULT_CELL)
+
+  var placements: List[(Vec2i, Status)] = []
+
+  var cursor = (0, 0)
+
+  with console;
+  try {
+    gameloop()
+  } with Gamestate[Cell, Unit] {
+
+      def getUserInput(allowed) = {
+        sleep(wait_time) // better visualization
+
+        if(not(placements.isEmpty)) {
+          with on[MissingValue].panic();
+          val next_placement = placements.head()
+          val target_cursor = next_placement.first
+
+          if(cursor == target_cursor) {
+            next_placement.second match {
+              case Queen() => {placements = placements.drop(1)
+                              resume("q")}
+              case Crossed() => {placements = placements.drop(1)
+                            resume("x")}
+              case _ => resume(" ") // TODO: Find default
+            }
+          }
+          else { // Move to correct position
+            compareInt(cursor.x, target_cursor.x) match {
+              case Less() => {cursor = cursor + (1, 0)
+                              resume("d")}
+              case Greater() => {cursor = cursor + (-1, 0)
+                                resume("a")}
+              case _ => compareInt(cursor.y, target_cursor.y) match {
+                              case Less() => {cursor = cursor + (0, 1)
+                                              resume("s")}
+                              case Greater() => {cursor = cursor + (0, -1)
+                                                resume("w")}
+                              case _ => resume(" ") // we reached the target
+              }
+            }
+          }
+        }
+      }
+
+      def updateGrid(grid, viz_grid, borders) = {
+        last_grid = grid
+        last_viz_grid = viz_grid
+
+        println(Screen::clear())
+        println(show(last_viz_grid))
+
+        if(placements.isEmpty) {
+          placements = findPlacements(last_grid)
+        }
+
+        resume(())
+      }
+
+      def gameWon(msg) = {
+        println(msg)
+      }
+  }
+}
+
+def playGame(size: Int): Unit / {random, Gamestate[Cell, Unit]} = {
+  with on[RuntimeError].panic();
+
+  val board = generateGame(size).hideQueens()
+  gameloop(board)
+}
 
 def testSuite(): Bool = suite("games/queens") {
 
@@ -425,5 +576,19 @@ def testSuite(): Bool = suite("games/queens") {
     board.placeStatus(Queen(), (3, 2))
 
     assertFalse(board.isWinning())
+  }
+
+  test("findByBruteForce") {
+    with on[MissingValue].panic()
+    var board = gamegrid::init(6, 6, DEFAULT_CELL).placeNQueens().head()
+
+    with minstd(1234);
+    board.expandRegions()
+    board = board.hideQueens()
+
+    val placements = board.findPlacementsByBruteForce()
+    board = board.applyPlacementsAtOnce(placements)
+
+    assertTrue(board.isWinning())
   }
 }
