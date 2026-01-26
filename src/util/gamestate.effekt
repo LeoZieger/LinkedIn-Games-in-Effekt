@@ -1,9 +1,12 @@
 module src/util/gamestate
 
 import src/util/gamegrid
+import src/util/connection
 
-interface Gamestate[A] {
-  def updateGrid(grid: Gamegrid[A], viz_grid: Gamegrid[String]): Unit
+interface Gamestate[A, C] {
+  def updateGrid(grid: Gamegrid[A],
+                 viz_grid: Gamegrid[String],
+                 connections: List[Connection[C]]): Unit
   def getUserInput(allowed: List[InputOption]): String
   def gameWon(msg: String): Unit
 }

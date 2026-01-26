@@ -12,6 +12,8 @@ import stream
 import tty
 import set
 import control
+import io/console
+import io/time
 
 type Status {
   Pathelement(i: Int)
@@ -276,7 +278,7 @@ def generateGame(size: Int): Maze / {random} = {
 }
 
 // TODO: Maybe check for borders
-def isWinning(maze: Maze, path: List[Vec2i]): Bool / {} = {
+def isWinning(maze: Maze, path: List[Vec2i], borders: List[Border]): Bool / {} = {
   with on[MissingValue].panic;
   if(path.size < maze.width * maze.height || maze.get(path.last).isEmptyCell()) {
     false
@@ -287,6 +289,9 @@ def isWinning(maze: Maze, path: List[Vec2i]): Bool / {} = {
 
     var contains_duplicates = false
     var visited: Set[Vec2i] = empty(box vec2i::compare)
+
+    var last_cell = (-1, -1) // does not exist, so is a safe default value
+    var crosses_border = false
 
     path.foreach {(v) {l: Label} =>
 
@@ -306,9 +311,17 @@ def isWinning(maze: Maze, path: List[Vec2i]): Bool / {} = {
                                }
         case Empty() => () // we dont care when empty cells are visited
       }
+
+      // Checking for border crossing
+      val b = Border(v, last_cell)
+      if (borders.contains(b) {(a, b) => connection::equals(a, b)}) {
+        crosses_border = true
+      }
+
+      last_cell = v
     }
 
-    is_sorted && not(contains_duplicates)
+    is_sorted && not(contains_duplicates) && not(crosses_border)
   }
 }
 
@@ -398,7 +411,7 @@ def show_maze(maze: Maze, path: List[Vec2i], cursor: Vec2i, borders: List[Border
       .extendGridBy1Connecting(" ".padLeft(max_index_len), connections) // grid is extended, free space is filled with ' ' and cells that are in path are filled with PATH_SYMBOL
 }
 
-def gameloop(maze: Maze, borders: List[Border]): Unit / {Gamestate[Cell]} = {
+def gameloop(maze: Maze, borders: List[Border]): Unit / {Gamestate[Cell, Unit]} = {
   var cursor = findStart(maze)
 
   var current_maze = maze
@@ -406,9 +419,9 @@ def gameloop(maze: Maze, borders: List[Border]): Unit / {Gamestate[Cell]} = {
 
   loop {{l: Label} =>
     // Sending current board to console
-    do updateGrid(current_maze, show_maze(current_maze, current_path, cursor, borders))
+    do updateGrid(current_maze, show_maze(current_maze, current_path, cursor, borders), borders)
 
-    if(current_maze.isWinning(current_path)) {
+    if(current_maze.isWinning(current_path, borders)) {
       l.break()
     }
 
@@ -435,20 +448,19 @@ def gameloop(maze: Maze, borders: List[Border]): Unit / {Gamestate[Cell]} = {
 
   do gameWon(
   """
- __     __                                 _______       _
- \ \   / /                                |___  (_)     | |
-  \ \_/ /__  _   _  __      _____  _ __      / / _ _ __ | |
-   \   / _ \| | | | \ \ /\ / / _ \| '_ \    / / | | '_ \| |
-    | | (_) | |_| |  \ V  V / (_) | | | |  / /__| | |_) |_|
-    |_|\___/ \__,_|   \_/\_/ \___/|_| |_| /_____|_| .__/(_)
-                                                  | |
-                                                  |_|
-
+   _____ ____  __  __ __                         _______         _
+  / ____/ __ \|  \/  /_ |                       |___  (_)       | |
+ | |   | |  | | \  / || | __      _____  _ __      / / _ _ __   | |
+ | |   | |  | | |\/| || | \ \ /\ / / _ \| '_ \    / / | | '_ \  | |
+ | |___| |__| | |  | || |  \ V  V / (_) | | | |  / /__| | |_) | |_|
+  \_____\____/|_|  |_||_|   \_/\_/ \___/|_| |_| /_____|_| .__/  (_)
+                                                        | |
+                                                        |_|
   """
   )
 }
 
-def playGame(size: Int, path_keep_factor: Double, border_keep_factor: Double): Unit / {random, Gamestate[Cell]} = {
+def playGame(size: Int, path_keep_factor: Double, border_keep_factor: Double): Unit / {random, Gamestate[Cell, Unit]} = {
   var maze = generateGame(size)
   var path = maze.extractPath()
   var borders = maze.generateAllBordersFromPath(path)
@@ -457,6 +469,74 @@ def playGame(size: Int, path_keep_factor: Double, border_keep_factor: Double): U
   borders = borders.hideBorders(border_keep_factor)
 
   gameloop(maze, borders)
+}
+
+def findWorkingPath(maze: Maze, borders: List[Border]): Option[List[Vec2i]] / {} = {
+    val all_mazes = generatePaths(init(maze.width, maze.height, EMPTY_CELL), maze.findStart)
+    var path: Option[List[Vec2i]] = None()
+
+    all_mazes.foreach {(m) {l: Label} =>
+      val p = extractPath(m)
+
+      if(maze.isWinning(p, borders)) {
+        path = Some(p)
+        l.break()
+      }
+    }
+
+    path
+}
+
+def solve() {gameloop: () => Unit / {Gamestate[Cell, Unit]}} = {
+  var last_viz_grid: Gamegrid[String] = init(1, 1, "") // Dummy value // TODO: Give function to vizualize the grid..
+  var last_grid: Gamegrid[Cell] = init(1, 1, EMPTY_CELL)
+
+  var path: List[Vec2i] = []
+  var cursor = (0, 0)
+
+  with console;
+  try {
+    gameloop()
+  } with Gamestate[Cell, Unit] {
+
+      def getUserInput(allowed) = {
+
+        // Determening next Move
+        with on[MissingValue].panic();
+        path = path.drop(1) // lose first element of path, since we are already there
+        val next_cell = path.head()
+
+        val working_input_option = INPUT_OPTIONS.filter {t =>
+                                      val offset = t.second
+                                      next_cell - offset == cursor // check if this input gets the cursor to the next cell
+                                   }.head.first
+        cursor = next_cell
+
+        sleep(400) // better visualization
+        resume(working_input_option.key)
+      }
+
+      def updateGrid(grid, viz_grid, borders) = {
+        last_grid = grid
+        last_viz_grid = viz_grid
+
+        println(Screen::clear())
+        println(show(last_viz_grid))
+
+        if(path.isEmpty) {
+          cursor = last_grid.findStart()
+
+          with on[MissingValue].panic(); // when no path is found
+          path = findWorkingPath(last_grid, borders).value
+        }
+
+        resume(())
+      }
+
+      def gameWon(msg) = {
+        println(msg)
+      }
+  }
 }
 
 def testSuite(): Bool = suite("games/zip") {
@@ -571,6 +651,39 @@ def testSuite(): Bool = suite("games/zip") {
 
     val p = [(0,0), (1,0), (1,1), (0,1)]
 
-    assertTrue(isWinning(m, p))
+    assertTrue(isWinning(m, p, [Border((0,0), (0,1))]))
+  }
+
+  test("isNotWinning") {
+    val m = Gamegrid(3, 3, fromList([Cell(Pathelement(1)), Cell(Empty()), Cell(Empty()),    // 1 . .
+                                     Cell(Empty()), Cell(Empty()), Cell(Empty()),           // . . .
+                                     Cell(Empty()), Cell(Empty()), Cell(Pathelement(2))]))  // . . 2
+
+    val p = [(0,0), (1,0), (2,0), (2,1), (1,1), (0,1), (0,2), (1,2), (2,2)]
+
+    assertFalse(isWinning(m, p, [Border((0,0), (1,0))])) // Border blocks path
+  }
+
+  test("findWorkingPath") {
+    val m = Gamegrid(3, 3, fromList([Cell(Pathelement(1)), Cell(Empty()), Cell(Empty()),    // 1 . .
+                                     Cell(Empty()), Cell(Empty()), Cell(Empty()),           // . . .
+                                     Cell(Empty()), Cell(Empty()), Cell(Pathelement(2))]))  // . . 2
+
+    with on[MissingValue].panic();
+    val p = findWorkingPath(m, [Border((0,0), (0,1))]).value
+    val p_correct = [(0,0), (1,0), (2,0), (2,1), (1,1), (0,1), (0,2), (1,2), (2,2)]
+
+    assertEqual(p, p_correct)
+  }
+
+  test("findNoWorkingPath") {
+    val m = Gamegrid(3, 3, fromList([Cell(Pathelement(1)), Cell(Empty()), Cell(Empty()),    // 1 . .
+                                     Cell(Empty()), Cell(Empty()), Cell(Empty()),           // . . .
+                                     Cell(Empty()), Cell(Empty()), Cell(Pathelement(2))]))  // . . 2
+
+    val p = findWorkingPath(m, [Border((0,0), (0,1)), // no path possible
+                                Border((0,0), (1,0))])
+
+    assertEqual(p, None())
   }
 }

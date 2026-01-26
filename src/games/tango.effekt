@@ -342,7 +342,7 @@ def showBoard(board: Board, cursor: Vec2i, constraints: List[Constraint]): Gameg
   }.extendGridBy1Connecting(" ", connections)
 }
 
-def gameloop(board: Board, constraints: List[Constraint]): Unit / {Gamestate[Cell]} = {
+def gameloop(board: Board, constraints: List[Constraint]): Unit / {Gamestate[Cell, ConstraintType]} = {
   var cursor = (0, 0)
   var current_board = board
 
@@ -358,7 +358,7 @@ def gameloop(board: Board, constraints: List[Constraint]): Unit / {Gamestate[Cel
 
   loop() {{l: Label} =>
     // Sending current board to console
-    do updateGrid(current_board, showBoard(current_board, cursor, constraints))
+    do updateGrid(current_board, showBoard(current_board, cursor, constraints), constraints)
 
     if(current_board.isWinning(constraints)) {
       l.break()
@@ -454,7 +454,7 @@ def generateAllConstraints(board: Board): List[Constraint] / {} = {
   constraints
 }
 
-def playGame(symbol_keep_factor: Double, constraint_keep_factor: Double): Unit / {random, Gamestate[Cell]} = {
+def playGame(symbol_keep_factor: Double, constraint_keep_factor: Double): Unit / {random, Gamestate[Cell, ConstraintType]} = {
   with on[RuntimeError].panic();
 
   var board = generateGame()
