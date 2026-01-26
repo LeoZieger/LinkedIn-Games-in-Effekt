@@ -57,12 +57,12 @@ def main(): Unit =  {
 
 
   // with playinterface[zip::Cell, Unit];
-  with zip::solve();
-  zip::playGame(5, 0.3, 0.5)
+  // with zip::solve(400);
+  // zip::playGame(5, 0.3, 0.5)
 
-  // with playinterface[zip::Cell];
-  // with playinterface[tango::Cell];
-  // tango::playGame(0.3, 0.3)
+  // with playinterface[tango::Cell, ConstraintType];
+  with tango::solve(100);
+  tango::playGame(0.2, 0.4)
 }
 
 

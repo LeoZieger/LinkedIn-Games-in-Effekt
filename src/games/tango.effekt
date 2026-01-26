@@ -10,6 +10,8 @@ import random
 import test
 import array
 import control
+import io/console
+import io/time
 import tty
 
 // TODO: Decide for s = status or c = cell as parameters
@@ -40,6 +42,7 @@ def infixEq(a: Cell, b: Cell): Bool / {} = {
   a.equals(b)
 }
 
+// TODO: Add colors
 def show(c: Cell): String / {} = {
   c match {
     case Moon() => "⏾"
@@ -74,9 +77,45 @@ type Constraint = Connection[ConstraintType]
 def Constraint(u: Vec2i, v: Vec2i, typ: ConstraintType) = Connection(u, v, typ) // TODO: Is this necessary??
 
 def satisfies(board: Board, constr: Constraint): Bool / {} = {
+  val a = board.get(constr.from)
+  val b = board.get(constr.to)
+
   constr.typ match {
-    case Equal() => equals(board.get(constr.from), board.get(constr.to))
-    case Diff() => not(equals(board.get(constr.from), board.get(constr.to)))
+    case Equal() => equals(a, b)
+    case Diff() => not(equals(a, b))
+  }
+}
+
+// This can be used when there are still empty cells, but we want to place something. Here, empty = Moon is ok (or Moon x Empty)
+def weakSatisfies(board: Board, constr: Constraint): Bool / {} = {
+  val a = board.get(constr.from)
+  val b = board.get(constr.to)
+
+  (a == Empty() || b == Empty()) || // either can be Empty
+  (constr.typ match {
+    case Equal() => equals(a, b)
+    case Diff() => not(equals(a, b))
+  })
+}
+
+val INPUT_OPTIONS = [
+  InputOption("w", "Cursor up"),
+  InputOption("s", "Cursor down"),
+  InputOption("a", "Cursor left"),
+  InputOption("d", "Cursor right"),
+  InputOption("t", "Place 𖤓"),
+  InputOption("n", "Place ⏾"),
+  InputOption("x", "Reset cell"),
+]
+
+// TODO: Remove
+def inputOptionToOffset(i: InputOption): Vec2i / {} = {
+  i.key match {
+    case "w" => (0, -1)
+    case "s" => (0, 1)
+    case "a" => (-1, 0)
+    case "d" => (0, 1)
+    case _ => (0, 0) // TODO: Find default
   }
 }
 
@@ -93,7 +132,7 @@ def placeAllSymbolCombinations(board: Board): List[Board] / {} = {
       [0,1,2,3,4,5].foreach {row =>
         val symbol = do pickSymbol((col, row))
 
-        if(new_board.isValidPlacement((col, row), symbol)) {
+        if(new_board.isValidPlacement((col, row), symbol, [])) { // TODO: Check if real constraints here
           new_board = new_board.setCopy((col, row), symbol)
         }
         else {
@@ -121,7 +160,7 @@ def placeOneSymbolCombination(board: Board): Board / {random, Exception[MissingV
       [0,1,2,3,4,5].foreach {row =>
         val symbol = do pickSymbol((col, row))
 
-        if(new_board.isValidPlacement((col, row), symbol)) {
+        if(new_board.isValidPlacement((col, row), symbol, [])) { // TODO: Check if real constraints here
           new_board = new_board.setCopy((col, row), symbol)
         }
         else {
@@ -256,7 +295,7 @@ def threeInACol(board: Board, col: Int): Bool / {} = {
 // TODO: Check constraints
 // TODO: Refactor
 // TODO: Improve
-def isValidPlacement(board: Board, v: Vec2i, c: Cell): Bool / {} = {
+def isValidPlacement(board: Board, v: Vec2i, c: Cell, constraints: List[Constraint]): Bool / {} = {
   // Checking all vertical cells how many symbols there are
   var vert_num_suns = board.verticalCellsExcluding(v).count {c => c.equals(Sun())}
   var vert_num_moons = board.verticalCellsExcluding(v).count {c => c.equals(Moon())}
@@ -278,7 +317,9 @@ def isValidPlacement(board: Board, v: Vec2i, c: Cell): Bool / {} = {
 
   vert_num_moons <= 3 && horiz_num_moons <= 3 &&
   vert_num_suns <= 3 && horiz_num_suns <= 3 &&
-  not(new_board.threeInACol(v.x)) && not(new_board.threeInARow(v.y))
+  not(new_board.threeInACol(v.x)) &&
+  not(new_board.threeInARow(v.y)) &&
+  constraints.all {constr => new_board.weakSatisfies(constr)}
 }
 
 // TODO: Improve performance
@@ -346,16 +387,6 @@ def gameloop(board: Board, constraints: List[Constraint]): Unit / {Gamestate[Cel
   var cursor = (0, 0)
   var current_board = board
 
-  val input_options = [
-    InputOption("w", "Cursor up"),
-    InputOption("s", "Cursor down"),
-    InputOption("a", "Cursor left"),
-    InputOption("d", "Cursor right"),
-    InputOption("t", "Place 𖤓"),
-    InputOption("n", "Place ⏾"),
-    InputOption("x", "Reset cell"),
-  ]
-
   loop() {{l: Label} =>
     // Sending current board to console
     do updateGrid(current_board, showBoard(current_board, cursor, constraints), constraints)
@@ -364,7 +395,7 @@ def gameloop(board: Board, constraints: List[Constraint]): Unit / {Gamestate[Cel
       l.break()
     }
 
-    val input = do getUserInput(input_options)
+    val input = do getUserInput(INPUT_OPTIONS)
 
     input match {
       case "w" => cursor = cursor.addOntoIfInBound((0,-1), current_board)
@@ -466,6 +497,382 @@ def playGame(symbol_keep_factor: Double, constraint_keep_factor: Double): Unit /
   gameloop(board, constraints)
 }
 
+// TODO: Test
+def applyPlacementsAtOnce(board: Board, placements: List[(Vec2i, Cell)]): Board / {} = {
+  var new_board = board.copy()
+
+  placements.foreach {p =>
+    val v = p.first
+    val s = p.second
+    new_board.set(v, s)
+  }
+
+  new_board
+}
+
+def findPlacementsByBruteForce(board: Board, constraints: List[Constraint]): List[(Vec2i, Cell)] / {} = {
+
+  val empty_cells = board.mapWithIndex {(v, t) => (v, t)}
+                         .grid.filtered {t => t.second == Empty()}
+
+  val o_board = try {
+    var new_board = board.copy()
+
+    empty_cells.foreach{t =>
+        val symbol = do pickSymbol(t.first)
+
+        if(new_board.isValidPlacement(t.first, symbol, constraints)) {
+          new_board = new_board.setCopy(t.first, symbol)
+        }
+        else {
+          do fail()
+        }
+    }
+
+    Some(new_board)
+
+  } with Search {
+    def pickSymbol(v) = {
+      var o_board: Option[Board] = None()
+
+      [Moon(), Sun()].foreach{(s) {l: Label} =>
+        resume(s) match {
+          case Some(b) => {
+            o_board = Some(b)
+            l.break()
+          }
+          case None() => l.continue()
+        }
+      }
+
+      o_board
+    }
+
+    def fail() = {None()}
+  }
+
+  var placements: List[(Vec2i, Cell)] = []
+
+  with on[MissingValue].panic();
+  val filled_board = o_board.value
+
+  // Calculating diff between boards := Placements that have to be made
+  filled_board.mapWithIndex {(v, s) => (v, s)}.grid.foreach {t =>
+    val v = t.first
+    val s = t.second
+
+    if(board.get(v) == Empty()) { // if this was empty before
+      placements = Cons((v, s), placements) // adding diff to placements
+    }
+  }
+
+  placements
+}
+
+// TODO: Use streams!
+def findPlacements(board: Board, constraints: List[Constraint]): List[(Vec2i, Cell)] / {} = {
+  var placements: List[(Vec2i, Cell)] = []
+
+  var new_board = board.copy() // TODO: This is unnecessary. At least if update_grid always calculates on new grids
+
+  // Checking all constraints
+  def opposite(a: Cell): Cell / {} = {
+    a match {
+      case Sun() => Moon()
+      case Moon() => Sun()
+      case Empty() => Empty() // not used
+    }
+  }
+
+  constraints.foreach{(c) {l: Label} =>
+    val a = new_board.get(c.from)
+    val b = new_board.get(c.to)
+
+    (a, b, c.typ) match {
+      case (Empty(), Empty(), _) => ()
+
+      case (Empty(), s, Equal()) => {placements = Cons((c.from, s), placements)
+                                     new_board.set(c.from, s)}
+      case (s, Empty(), Equal()) => {placements = Cons((c.to, s), placements)
+                                     new_board.set(c.to, s)}
+
+      case (Empty(), s, Diff()) => {placements = Cons((c.from, opposite(s)), placements)
+                                    new_board.set(c.from, opposite(s))}
+      case (s, Empty(), Diff()) => {placements = Cons((c.to, opposite(s)), placements)
+                                    new_board.set(c.to, opposite(s))}
+
+      case _ => () // We dont correct mistakes
+    }
+  }
+
+
+  // Checking for 3 in a row/col (not in a row)
+  // Checking Colums
+  [0,1,2,3,4,5].foreach {col =>
+    val vertical_cells = new_board.verticalCellsOf(col)
+    val num_moons = vertical_cells.count {s => s == Moon()}
+    val num_suns = vertical_cells.count {s => s == Sun()}
+
+    if (num_moons == 3) {
+      vertical_cells.foreachIndex{(row, s) =>
+        if(s == Empty()) {
+          placements = Cons(((col, row), Sun()), placements)
+          new_board.set((col, row), Sun())
+        }
+      }
+    }
+
+    if (num_suns == 3) {
+      vertical_cells.foreachIndex{(row, s) =>
+        if(s == Empty()) {
+          placements = Cons(((col, row), Moon()), placements)
+          new_board.set((col, row), Moon())
+        }
+      }
+    }
+  }
+
+  // Checking Rows
+  [0,1,2,3,4,5].foreach {row =>
+    val horizon_cells = new_board.horizontalCellsOf(row)
+    val num_moons = horizon_cells.count {s => s == Moon()}
+    val num_suns = horizon_cells.count {s => s == Sun()}
+
+    if (num_moons == 3) {
+      horizon_cells.foreachIndex{(col, s) =>
+        if(s == Empty()) {
+          placements = Cons(((col, row), Sun()), placements)
+          new_board.set((col, row), Sun())
+        }
+      }
+    }
+
+    if (num_suns == 3) {
+      horizon_cells.foreachIndex{(col, s) =>
+        if(s == Empty()) {
+          placements = Cons(((col, row), Moon()), placements)
+          new_board.set((col, row), Moon())
+        }
+      }
+    }
+  }
+
+
+  // Iterating rows/cols and check for pairs and gaps
+  // Checking columns
+  [0,1,2,3,4,5].foreach {col =>
+    val vertical_cells = new_board.verticalCellsOf(col)
+    var last_2_cells: List[Cell] = [] // This allows us a window of 3 cells over which we can decide
+
+    vertical_cells.foreachIndex{(row, s) =>
+      if(last_2_cells.size == 2) {
+
+        s match {
+
+          // -> . ? ?
+          case Empty() => {
+            last_2_cells match {
+              // -> . M M
+              case Cons(Moon(), Cons(Moon(), Nil())) => { // 2 in a row
+                placements = Cons(((col, row), Sun()), placements)
+                new_board.set((col, row), Sun())
+              }
+              // -> . S S
+              case Cons(Sun(), Cons(Sun(), Nil())) => { // 2 in a row
+                placements = Cons(((col, row), Moon()), placements)
+                new_board.set((col, row), Moon())
+              }
+              case _ => ()
+            }
+          }
+
+          // -> M ? ?
+          case Moon() => {
+            last_2_cells match {
+              // -> M . M
+              case Cons(Empty(), Cons(Moon(), Nil())) => { // gap
+                placements = Cons(((col, row - 1), Sun()), placements)
+                new_board.set((col, row - 1), Sun())
+              }
+              // -> M M .
+              case Cons(Moon(), Cons(Empty(), Nil())) => { // 2 in a row (but reverse)
+                placements = Cons(((col, row - 2), Sun()), placements)
+                new_board.set((col, row - 2), Sun())
+              }
+              case _ => ()
+            }
+          }
+
+          // -> M ? ?
+          case Sun() => {
+            last_2_cells match {
+              // -> S . S
+              case Cons(Empty(), Cons(Sun(), Nil())) => { // gap
+                placements = Cons(((col, row - 1), Moon()), placements)
+                new_board.set((col, row - 1), Moon())
+              }
+              // -> S S .
+              case Cons(Sun(), Cons(Empty(), Nil())) => { // 2 in a row (but reverse)
+                placements = Cons(((col, row - 2), Moon()), placements)
+                new_board.set((col, row - 2), Moon())
+              }
+              case _ => ()
+            }
+          }
+        }
+
+        last_2_cells = last_2_cells.take(1) // drop the last item
+      }
+
+      last_2_cells = Cons(s, last_2_cells)
+    }
+  }
+
+  // Checking rows
+  [0,1,2,3,4,5].foreach {row =>
+    val horizon_cells = new_board.horizontalCellsOf(row)
+    var last_2_cells: List[Cell] = [] // This allows us a window of 3 cells over which we can decide
+
+    horizon_cells.foreachIndex{(col, s) =>
+      if(last_2_cells.size == 2) {
+
+        s match {
+
+          // -> . ? ?
+          case Empty() => {
+            last_2_cells match {
+              // -> . M M
+              case Cons(Moon(), Cons(Moon(), Nil())) => { // 2 in a row
+                placements = Cons(((col, row), Sun()), placements)
+                new_board.set((col, row), Sun())
+              }
+              // -> . S S
+              case Cons(Sun(), Cons(Sun(), Nil())) => { // 2 in a row
+                placements = Cons(((col, row), Moon()), placements)
+                new_board.set((col, row), Moon())
+              }
+              case _ => ()
+            }
+          }
+
+          // -> M ? ?
+          case Moon() => {
+            last_2_cells match {
+              // -> M . M
+              case Cons(Empty(), Cons(Moon(), Nil())) => { // gap
+                placements = Cons(((col - 1, row), Sun()), placements)
+                new_board.set((col - 1, row), Sun())
+              }
+              // -> M M .
+              case Cons(Moon(), Cons(Empty(), Nil())) => { // 2 in a row (but reverse)
+                placements = Cons(((col - 2, row), Sun()), placements)
+                new_board.set((col - 2, row), Sun())
+              }
+              case _ => ()
+            }
+          }
+
+          // -> M ? ?
+          case Sun() => {
+            last_2_cells match {
+              // -> S . S
+              case Cons(Empty(), Cons(Sun(), Nil())) => { // gap
+                placements = Cons(((col - 1, row), Moon()), placements)
+                new_board.set((col - 1, row), Moon())
+              }
+              // -> S S .
+              case Cons(Sun(), Cons(Empty(), Nil())) => { // 2 in a row (but reverse)
+                placements = Cons(((col - 2, row), Moon()), placements)
+                new_board.set((col - 2, row), Moon())
+              }
+              case _ => ()
+            }
+          }
+        }
+
+        last_2_cells = last_2_cells.take(1) // drop the last
+      }
+
+      last_2_cells = Cons(s, last_2_cells)
+    }
+  }
+
+  // If after all this ^^^ there is still no placement found, we try all combinations
+  if(placements.isEmpty() && (new_board.grid.count {s => s == Empty()}) > 0) {
+    placements = findPlacementsByBruteForce(new_board, constraints)
+  }
+
+  placements
+}
+
+def solve(wait_time: Int) {gameloop: () => Unit / {Gamestate[Cell, ConstraintType]}} = {
+  var last_viz_grid: Gamegrid[String] = init(1, 1, "") // Dummy value // TODO: Give function to vizualize the grid..
+  var last_grid: Gamegrid[Cell] = init(1, 1, Empty())
+
+  var placements: List[(Vec2i, Cell)] = []
+
+  var cursor = (0, 0)
+
+  with console;
+  try {
+    gameloop()
+  } with Gamestate[Cell, ConstraintType] {
+
+      def getUserInput(allowed) = {
+        sleep(wait_time) // better visualization
+
+        if(not(placements.isEmpty)) {
+          with on[MissingValue].panic();
+          val next_placement = placements.head()
+          val target_cursor = next_placement.first
+
+          if(cursor == target_cursor) {
+            next_placement.second match {
+              case Moon() => {placements = placements.drop(1)
+                              resume("n")}
+              case Sun() => {placements = placements.drop(1)
+                            resume("t")}
+              case _ => resume(" ") // TODO: Find default
+            }
+          }
+          else { // Move to correct position
+            compareInt(cursor.x, target_cursor.x) match {
+              case Less() => {cursor = cursor + (1, 0)
+                              resume("d")}
+              case Greater() => {cursor = cursor + (-1, 0)
+                                resume("a")}
+              case _ => compareInt(cursor.y, target_cursor.y) match {
+                              case Less() => {cursor = cursor + (0, 1)
+                                              resume("s")}
+                              case Greater() => {cursor = cursor + (0, -1)
+                                                resume("w")}
+                              case _ => resume(" ") // we reached the target
+              }
+            }
+          }
+        }
+      }
+
+      def updateGrid(grid, viz_grid, constraints) = {
+        last_grid = grid
+        last_viz_grid = viz_grid
+
+        println(Screen::clear())
+        println(show(last_viz_grid))
+
+        if(placements.isEmpty) { // TODO: Check for better uninitialized
+          placements = findPlacements(last_grid, constraints)
+        }
+
+        resume(())
+      }
+
+      def gameWon(msg) = {
+        println(msg)
+      }
+  }
+}
+
 def testSuite(): Bool = suite("games/tango") {
 
   test("isWinningNoConstraints") {
@@ -533,7 +940,7 @@ def testSuite(): Bool = suite("games/tango") {
   test("isValidPlacement") {
     val b = gamegrid::init(6, 6, Empty())
 
-    assertTrue(b.isValidPlacement((1, 1), Moon()))
+    assertTrue(b.isValidPlacement((1, 1), Moon(), []))
   }
 
   test("isNotValidPlacement") {
@@ -544,7 +951,7 @@ def testSuite(): Bool = suite("games/tango") {
                                      Sun(), Moon(), Sun(), Sun(), Moon(), Moon(),
                                      Moon(), Sun(), Moon(), Moon(), Sun(), Sun()]))
 
-    assertFalse(b.isValidPlacement((0, 1), Moon()))
+    assertFalse(b.isValidPlacement((0, 1), Moon(), []))
   }
 
   test("isNotValidPlacement3AfterAnother") {
@@ -555,7 +962,7 @@ def testSuite(): Bool = suite("games/tango") {
                                      Empty(), Empty(), Empty(), Empty(), Empty(), Empty(),
                                      Empty(), Empty(), Empty(), Empty(), Empty(), Empty()]))
 
-    assertFalse(b.isValidPlacement((0, 3), Moon()))
+    assertFalse(b.isValidPlacement((0, 3), Moon(), []))
   }
 
   test("allGamesValid") {
@@ -628,5 +1035,20 @@ def testSuite(): Bool = suite("games/tango") {
                                      Empty(), Empty(), Empty(), Empty(), Empty(), Empty(),
                                      Empty(), Empty(), Empty(), Empty(), Empty(), Empty()]))
     assertFalse(b.threeInARow(0))
+  }
+
+  test("findByBruteForce") {
+    val b = Gamegrid(6, 6, fromList([Empty(), Empty(), Empty(), Empty(), Empty(), Empty(),
+                                     Empty(), Empty(), Empty(), Empty(), Empty(), Empty(),
+                                     Empty(), Empty(), Empty(), Empty(), Empty(), Empty(),
+                                     Empty(), Empty(), Empty(), Empty(), Empty(), Empty(),
+                                     Empty(), Empty(), Empty(), Empty(), Empty(), Empty(),
+                                     Empty(), Empty(), Empty(), Empty(), Empty(), Empty()]))
+
+    val placements = b.findPlacementsByBruteForce([])
+
+    val b_new = b.applyPlacementsAtOnce(placements)
+
+    assertTrue(isWinning(b_new, []))
   }
 }

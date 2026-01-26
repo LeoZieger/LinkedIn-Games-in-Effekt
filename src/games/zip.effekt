@@ -448,14 +448,15 @@ def gameloop(maze: Maze, borders: List[Border]): Unit / {Gamestate[Cell, Unit]} 
 
   do gameWon(
   """
-   _____ ____  __  __ __                         _______         _
-  / ____/ __ \|  \/  /_ |                       |___  (_)       | |
- | |   | |  | | \  / || | __      _____  _ __      / / _ _ __   | |
- | |   | |  | | |\/| || | \ \ /\ / / _ \| '_ \    / / | | '_ \  | |
- | |___| |__| | |  | || |  \ V  V / (_) | | | |  / /__| | |_) | |_|
-  \_____\____/|_|  |_||_|   \_/\_/ \___/|_| |_| /_____|_| .__/  (_)
-                                                        | |
-                                                        |_|
+ __     __                                 _______       _
+ \ \   / /                                |___  (_)     | |
+  \ \_/ /__  _   _  __      _____  _ __      / / _ _ __ | |
+   \   / _ \| | | | \ \ /\ / / _ \| '_ \    / / | | '_ \| |
+    | | (_) | |_| |  \ V  V / (_) | | | |  / /__| | |_) |_|
+    |_|\___/ \__,_|   \_/\_/ \___/|_| |_| /_____|_| .__/(_)
+                                                  | |
+                                                  |_|
+
   """
   )
 }
@@ -487,7 +488,7 @@ def findWorkingPath(maze: Maze, borders: List[Border]): Option[List[Vec2i]] / {}
     path
 }
 
-def solve() {gameloop: () => Unit / {Gamestate[Cell, Unit]}} = {
+def solve(wait_time: Int) {gameloop: () => Unit / {Gamestate[Cell, Unit]}} = {
   var last_viz_grid: Gamegrid[String] = init(1, 1, "") // Dummy value // TODO: Give function to vizualize the grid..
   var last_grid: Gamegrid[Cell] = init(1, 1, EMPTY_CELL)
 
@@ -512,7 +513,7 @@ def solve() {gameloop: () => Unit / {Gamestate[Cell, Unit]}} = {
                                    }.head.first
         cursor = next_cell
 
-        sleep(400) // better visualization
+        sleep(wait_time) // better visualization
         resume(working_input_option.key)
       }
 
