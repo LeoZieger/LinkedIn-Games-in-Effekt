@@ -4,6 +4,7 @@ import src/util/gamegrid
 import src/util/vec2i
 import src/util/randomutil
 import src/util/gamestate
+import src/util/connection
 
 import random
 import test
@@ -69,12 +70,8 @@ def show(constr: ConstraintType): String / {} = {
   }
 }
 
-record Constraint(from: Vec2i, to: Vec2i, typ: ConstraintType)
-
-def constraintEquals(a: Constraint, b: Constraint): Bool / {} = {
-  // (1,0) -> (0, 1) is the same as (0, 1) -> (1, 0) (if the type is the same)
-  equals(a.typ, b.typ) && ((a.from == b.from && a.to == b.to) || (a.from == b.to && a.to == b.from))
-}
+type Constraint = Connection[ConstraintType]
+def Constraint(u: Vec2i, v: Vec2i, typ: ConstraintType) = Connection(u, v, typ) // TODO: Is this necessary??
 
 def satisfies(board: Board, constr: Constraint): Bool / {} = {
   constr.typ match {
@@ -345,7 +342,7 @@ def showBoard(board: Board, cursor: Vec2i, constraints: List[Constraint]): Gameg
   }.extendGridBy1Connecting(" ", connections)
 }
 
-def gameloop(board: Board, constraints: List[Constraint]): Unit / {Gamestate} = {
+def gameloop(board: Board, constraints: List[Constraint]): Unit / {Gamestate[Cell]} = {
   var cursor = (0, 0)
   var current_board = board
 
@@ -361,7 +358,7 @@ def gameloop(board: Board, constraints: List[Constraint]): Unit / {Gamestate} = 
 
   loop() {{l: Label} =>
     // Sending current board to console
-    do updateGrid(showBoard(current_board, cursor, constraints))
+    do updateGrid(current_board, showBoard(current_board, cursor, constraints))
 
     if(current_board.isWinning(constraints)) {
       l.break()
@@ -410,6 +407,22 @@ def hideSymbols(board: Board, symbol_keep_factor: Double): Board / {random} = {
   }
 }
 
+def hideConstraints(constraints: List[Constraint], keep_factor: Double): List[Constraint] / {random} = {
+  var new_constraints: List[Constraint] = []
+
+  constraints.foreach {v =>
+    bernoulli(keep_factor)
+    {
+      new_constraints = Cons(v, new_constraints)
+    }
+    {
+      () // In case of 1 - keep_factor, we dont take this constraint into the new_constraints
+    }
+  }
+
+  new_constraints
+}
+
 // TODO: Test
 // TODO: Refactor, maybe use sets
 def generateAllConstraints(board: Board): List[Constraint] / {} = {
@@ -424,14 +437,14 @@ def generateAllConstraints(board: Board): List[Constraint] / {} = {
       if(n == s) { // if the neighbour is the same symbol
         val c = Constraint(v, u, Equal())
 
-        if (not(constraints.contains(c) {constraintEquals })) {
+        if (not(constraints.contains(c) { (a,b) => connection::equals(a, b) })) {
           constraints = Cons(c, constraints)
         }
       }
       else { // if the neighbour is a different symbol
         val c = Constraint(v, u, Diff())
 
-        if (not(constraints.contains(c) {constraintEquals })) {
+        if (not(constraints.contains(c) { (a,b) => connection::equals(a, b) })) {
           constraints = Cons(c, constraints)
         }
       }
@@ -441,13 +454,14 @@ def generateAllConstraints(board: Board): List[Constraint] / {} = {
   constraints
 }
 
-def playGame(): Unit / {random, Gamestate} = {
+def playGame(symbol_keep_factor: Double, constraint_keep_factor: Double): Unit / {random, Gamestate[Cell]} = {
   with on[RuntimeError].panic();
 
   var board = generateGame()
   var constraints = generateAllConstraints(board)
 
-  board = board.hideSymbols(0.8)
+  board = board.hideSymbols(symbol_keep_factor)
+  constraints = constraints.hideConstraints(constraint_keep_factor)
 
   gameloop(board, constraints)
 }

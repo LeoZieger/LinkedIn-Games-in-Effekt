@@ -11,13 +11,13 @@ import src/games/zip
 import src/games/tango
 
 
-def playinterface() {gameloop: () => Unit / {Gamestate}} = {
+def playinterface[A]() {gameloop: () => Unit / {Gamestate[A]}} = {
   var last_grid = init(1, 1, "") // Dummy value
 
   with console;
   try {
     gameloop()
-  } with Gamestate {
+  } with Gamestate[A] {
       def getUserInput(allowed) = {
         println(show(allowed))
 
@@ -39,8 +39,8 @@ def playinterface() {gameloop: () => Unit / {Gamestate}} = {
         resume(ret)
       }
 
-      def updateGrid(grid) = {
-        last_grid = grid
+      def updateGrid(grid, viz_grid) = {
+        last_grid = viz_grid
         println(Screen::clear())
         println(show(last_grid))
         resume(())
@@ -53,11 +53,14 @@ def playinterface() {gameloop: () => Unit / {Gamestate}} = {
 }
 
 def main(): Unit =  {
-  with playinterface;
   with minstd(timestamp());
-  // play_queens()
+
+
+  // with playinterface[zip::Cell];
   // zip::playGame(5, 0.3, 0.5)
-  tango::playGame()
+
+  with playinterface[tango::Cell];
+  tango::playGame(0.3, 0.3)
 }
 
 
@@ -65,6 +68,6 @@ def main(): Unit =  {
 def play_queens(): Unit / {random}= {
   with on[RuntimeError].panic() // TODO: Do I need this?
   val b = queens::generateGame(4).hideQueens()
-  with playinterface;
+  with playinterface[queens::Cell];
   gameloop(b)
 }

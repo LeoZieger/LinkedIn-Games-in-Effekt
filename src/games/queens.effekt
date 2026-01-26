@@ -204,7 +204,7 @@ def show_board(board: Board, cursor: Vec2i): Gamegrid[String] / {} = {
                       }
 }
 
-def gameloop(board: Board): Unit / {Gamestate} = {
+def gameloop(board: Board): Unit / {Gamestate[Cell]} = {
   var cursor = (0, 0)
   var current_board = board
 
@@ -220,7 +220,7 @@ def gameloop(board: Board): Unit / {Gamestate} = {
 
   loop() {{l: Label} =>
     // Sending current board to console
-    do updateGrid(show_board(current_board, cursor))
+    do updateGrid(current_board, show_board(current_board, cursor))
 
     if(current_board.isWinning()) {
       l.break()
