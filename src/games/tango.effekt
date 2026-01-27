@@ -42,7 +42,6 @@ def infixEq(a: Cell, b: Cell): Bool / {} = {
   a.equals(b)
 }
 
-// TODO: Add colors
 def show(c: Cell): String / {} = {
   c match {
     case Moon() => "\u001b[34m" ++ "⏾" ++ Escape::RESET
