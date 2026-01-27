@@ -12,6 +12,9 @@ import set
 import control
 import io/console
 import io/time
+import io/filesystem
+import io/error
+import json
 
 
 type Status {
@@ -405,6 +408,50 @@ def playGame(size: Int): Unit / {random, Gamestate[Cell, Unit]} = {
   gameloop(board)
 }
 
+def saveGame(board: Board): Unit / {} = {
+  val s = board.toJSON()
+
+  with on[IOError].panic;
+  writeFile("files/queens/game.json", s)
+}
+
+def toJSON(board: Board): String / {} = {
+  var buffer = ""
+
+  try {
+    with on[WrongFormat].panic;
+    encodeJson {
+      do dict{
+        do field("width"){
+          do number(board.width.toDouble)
+        }
+        do field("height"){
+          do number(board.width.toDouble)
+        }
+        do field("values"){
+          do list{
+            board.grid.foreach {c =>
+              do dict {
+                do field("isQueen") {
+                  do bool(c.isQueenCell())
+                }
+                do field("region") {
+                  do number(c.reg.id.toDouble)
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  } with emit[String] { s =>
+      buffer = buffer ++ s
+      resume(())
+  }
+
+  buffer
+}
+
 def testSuite(): Bool = suite("games/queens") {
 
   test("isQueen") {
@@ -590,5 +637,17 @@ def testSuite(): Bool = suite("games/queens") {
     board = board.applyPlacementsAtOnce(placements)
 
     assertTrue(board.isWinning())
+  }
+
+  test("saveGame") {
+    with on[MissingValue].panic()
+    var board = gamegrid::init(4, 4, DEFAULT_CELL).placeNQueens().head()
+
+    board.saveGame()
+
+    with on[IOError].panic()
+    val s = readFile("files/queens/game.json")
+
+    assertFalse(s == "")
   }
 }
