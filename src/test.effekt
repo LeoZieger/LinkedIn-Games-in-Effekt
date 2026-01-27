@@ -1,12 +1,12 @@
 module src/test
 
 import test
-import src/lib
 import process
 
 import src/util/gamegrid
 import src/util/vec2i
 import src/util/randomutil
+import src/util/connection
 import src/games/queens
 import src/games/zip
 import src/games/tango
@@ -16,6 +16,7 @@ def main(): Unit = {
     [ gamegrid::testSuite(),
       vec2i::testSuite(),
       randomutil::testSuite(),
+      connection::testSuite(),
       queens::testSuite(),
       zip::testSuite(),
       tango::testSuite()
