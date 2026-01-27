@@ -270,10 +270,6 @@ def generateGame(size: Int): Maze / {random} = {
     }
   }
 
-  // TODO: Why?
-  val path = maze.extractPath()
-  val borders = maze.generateAllBordersFromPath(path)
-
   maze
 }
 

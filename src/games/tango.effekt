@@ -107,17 +107,6 @@ val INPUT_OPTIONS = [
   InputOption("x", "Reset cell"),
 ]
 
-// TODO: Remove
-def inputOptionToOffset(i: InputOption): Vec2i / {} = {
-  i.key match {
-    case "w" => (0, -1)
-    case "s" => (0, 1)
-    case "a" => (-1, 0)
-    case "d" => (0, 1)
-    case _ => (0, 0) // TODO: Find default
-  }
-}
-
 interface Search {
   def pickSymbol(v: (Int, Int)): Cell
   def fail(): Nothing
