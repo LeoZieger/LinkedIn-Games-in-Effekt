@@ -54,16 +54,121 @@ def playinterface[A, C]() {gameloop: () => Unit / {Gamestate[A, C]}} = {
 
 def main(): Unit =  {
   with minstd(timestamp());
+  chooseAndPlayGame()
+}
 
-  // with playinterface[zip::Cell, Unit];
-  // with zip::solve(400);
-  // zip::playGame(5, 0.3, 0.5)
+// TODO: Move to src/util/gamestate
+def readOption(options: List[InputOption]): String / {Console} = {
+  println(Screen::clear())
+  println(show(options))
+  var i = ""
 
-  // with playinterface[tango::Cell, ConstraintType];
-  // with tango::solve(100);
-  // tango::playGame(0.2, 0.4)
+  loop() {{l: Label} =>
+    val input = do readLine()
 
-  // with queens::solve(200);
-  with playinterface[queens::Cell, Unit];
-  queens::playGame(6)
+    if (options.map{o => o.key}.contains(input) {(a, b) => a == b}) {
+      i = input
+      l.break()
+    }
+    else {
+      println(Screen::clear()) // In case of invalid input, show the screen again
+      println(show(options)) // + Input Options
+    }
+  }
+  i
+}
+
+val QUEENS_GAMES = [
+  box {queens::playGame(4)},
+  box {queens::playGame(5)},
+  box {queens::playGame(6)}
+]
+
+val TANGO_GAMES = [
+  box {tango::playGame(0.6, 0.5)},
+  box {tango::playGame(0.4, 0.4)},
+  box {tango::playGame(0.3, 0.2)}
+]
+
+val ZIP_GAMES = [
+  box {zip::playGame(4, 0.8, 0.7)},
+  box {zip::playGame(5, 0.5, 0.6)},
+  box {zip::playGame(6, 0.3, 0.4)}
+]
+
+def diffInputToIndex(i: String): Int / {} = {
+  i match {
+    case "1" => 0
+    case "2" => 1
+    case "3" => 2
+    case _ => 0
+  }
+}
+
+def chooseAndPlayGame(): Unit / {random} = {
+
+  val game_options = [
+    InputOption("q", "Queens"),
+    InputOption("z", "Zip"),
+    InputOption("t", "Tango")
+  ]
+
+  val difficulty_options = [
+    InputOption("1", "Easy"),
+    InputOption("2", "Medium"),
+    InputOption("3", "Hard")
+  ]
+
+  val player_options = [
+    InputOption("p", "Player"),
+    InputOption("c", "Computer"),
+  ]
+
+  with console;
+
+  val g = readOption(game_options)
+  val d = readOption(difficulty_options)
+  val p = readOption(player_options)
+
+  with on[OutOfBounds].panic();
+  g match {
+    // TODO: Make this simpler
+    case "q" => {
+      val game = QUEENS_GAMES.get(diffInputToIndex(d))
+
+      if(p == "p") {
+        with playinterface[queens::Cell, Unit]();
+        game()
+      }
+      else {
+        with queens::solve(200);
+        game()
+      }
+    }
+    case "z" => {
+      val game = ZIP_GAMES.get(diffInputToIndex(d))
+
+      if(p == "p") {
+        with playinterface[zip::Cell, Unit]();
+        game()
+      }
+      else {
+        with zip::solve(200);
+        game()
+      }
+    }
+    case "t" => {
+      val game = TANGO_GAMES.get(diffInputToIndex(d))
+
+      if(p == "p") {
+        with playinterface[tango::Cell, ConstraintType]();
+        game()
+      }
+      else {
+        with tango::solve(200);
+        game()
+      }
+    }
+    case _ => ()
+  }
 }

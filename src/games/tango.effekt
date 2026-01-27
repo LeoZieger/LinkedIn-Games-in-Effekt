@@ -45,8 +45,8 @@ def infixEq(a: Cell, b: Cell): Bool / {} = {
 // TODO: Add colors
 def show(c: Cell): String / {} = {
   c match {
-    case Moon() => "⏾"
-    case Sun() => "𖤓"
+    case Moon() => "\u001b[34m" ++ "⏾" ++ Escape::RESET
+    case Sun() => "\u001b[33m" ++ "𖤓" ++ Escape::RESET
     case Empty() => "."
   }
 }

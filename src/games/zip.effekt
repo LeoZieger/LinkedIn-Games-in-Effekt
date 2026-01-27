@@ -473,7 +473,7 @@ def playGame(size: Int, path_keep_factor: Double, border_keep_factor: Double): U
 }
 
 def findWorkingPath(maze: Maze, borders: List[Border]): Option[List[Vec2i]] / {} = {
-    val all_mazes = generatePaths(init(maze.width, maze.height, EMPTY_CELL), maze.findStart)
+    val all_mazes = generatePaths(init(maze.width, maze.height, EMPTY_CELL), maze.findStart) // TODO: Filter
     var path: Option[List[Vec2i]] = None()
 
     all_mazes.foreach {(m) {l: Label} =>
