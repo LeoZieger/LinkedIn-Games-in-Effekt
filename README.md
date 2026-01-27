@@ -1,127 +1,51 @@
-# Effekt Template
+# LinkedIn Games Simulator
 
-> [!WARNING]
-> This is a work-in-progress, feel free to contribute!
+While LinkedIn itself is full of mediocre tech-content, excessive work-life-influencers and a lot (really a lot) of AI generated content that wants to show me how to create a perfect resumee, there is one corner i frequently visit: LinkedIn Games! ([https://www.linkedin.com/games/])(https://www.linkedin.com/games/)
+Similar to the the [nytimes](https://www.nytimes.com) or even [spiegel](https://www.spiegel.de/games/) LinkedIn offers its own collection of puzzle games:
 
-This template provides a starting point for Effekt projects.
+* Zip (fill a grid with a continuos line while reaching cells in the correct order)
+* Mini Sudoku (6x6 Sudoku)
+* Tango (fill a grid with 2 symbols, with certain rules in place)
+* Queens (n-queens problems, but also with areas where the same rules apply, i.e. one queen per row, column, area)
+* Pinpoint (find the connection between 5 words)
+* Crossclimb (find the correct words that only change one letter, with the help of crossword-like hints)
 
-## Table of contents
+While the idea is probably to connect with collegues, professors (yes there are some that play daily) and peers, I often play these games on the bus. On one hand, this is because I built up a streak solving all these puzzles, but also because I genuinely enjoy solving them (especially Queens and Zip). Over the months, I found rulesets, algorithms to solve these puzzles in my mind, but I always wanted to implement some of them for a computer to solve and check, if my they make even sense or how I can improve them (this is also to improve my times in comparison to some professors).
 
-- [First steps](#first-steps)
-- [Useful commands](#useful-commands)
-  - [Effekt commands](#effekt-commands)
-  - [Nix-related commands](#nix-related-commands)
-- [Example projects](#example-projects-using-this-template)
-- [Repository structure](#repository-structure)
-- [CI](#ci)
+My goal would be, to have a menu where the player can chose a game, play it (they are all singeplayer) or get one solved by the computer. For this, I would run the games in the terminal, since they are all 2d / grid based, and the user can input the next move (`⭡`, `⭢`, `⭣`, `⭠` for zip, `⭡`, `⭢`, `⭣`, `⭠`, `x`, `Q` for Queens, ...). The mechanics depend on the games I would implement:
 
----
+* Zip, Tango, Queens: Here I would really like to implement a puzzle generator, which has the difficulty that the puzzle has to be possible. This would probaby be for the single player option. For an Computer-Solver-Mode, I might store a puzzle-file on the disk and let the computer solve it. This would also be the way to get the daily solution of the *actual* game.
+* Mini Sudoku: I will probably not implement this, since we already did a sudoku and this will not be that different.
+* Pinpoint, Crossclimb: I will probably not implement those, since they depend on creativity. I might be interested in writing a puzzle generator for Crossclimb, since this seems to be possible (when having the whole english dictionary and search paths of length n between words, where only one char differs) but since I cant provide the hints, this would not make much sense.
 
-## First steps
+I am looking forward to implementing interesting solvers and generators for the puzzles that I solve each day by hand.
 
-After using this template, follow these steps to set up your project:
+## Must-have
 
-1. Set up your development environment:
-   - Clone this repository locally.
-   - Open it in VSCode.
-   - Install the Effekt VSCode extension offered in the pop-up in the bottom right.
+* Games are playable in the terminal
+* Navigation-Menu (might be very simple) to switch between puzzlegames and decide how to play
+* Singleplayer, solver and generator for Zip, Tango and Queens
+* Possibility to store puzzles in some file and play them.
 
-2. Customize the project:
-   - Open `flake.nix` and update the project name and other relevant values (follow the comments).
-   - Push your `flake.nix` file after the changes and see if the CI agrees.
+## Can-have
 
-3. Set-up auto-update CI in order to get weekly PRs on Tuesday which update the Effekt version in CI:
-   - Go to Settings -> Actions -> General:
-     - and set "Workflow permissions" to "Read and write permissions"
-     - and check "Allow GitHub Actions to create and approve pull requests"    
-   - See the [CI](#ci) section for more details
+* Puzzle-Editor: Option for the player to create the puzzle in the terminal itself. Is possible and not too annoying for Tango and Zip (Queens is probably to overloaded with setting regions and colors...)
+* *LinkedIn-Scraper*: It might be possible to get the daily game from the website and offer it to play
+* Some help actions while playing (filling the next cell, giving hints, etc.)
+* Maybe some new kind of puzzle game I find along the way ...
+* LinkedIn-like banners after you win 'You are smarter than 60% of CEOs' (yes this one really exists)
+* Different color-schemes (maybe have fun characters for Queens and Tango)
+* Timer and scoreboard to compare to others.
 
-3. Replace this `README` with your own!
+## Will-not-have
 
-## Useful commands
+* Any kind of mulitplayer
+* GUI
 
-### Effekt commands
+## Effects and Handlers
 
-Run the main file:
-```sh
-effekt src/main.effekt
-```
-This (like many other Effekt commands) uses the JavaScript backend by default.
-To use a different backend, add the `--backend <backend>` flag.
-
-Run the tests:
-```sh
-effekt src/test.effekt
-```
-
-Open the REPL:
-```sh
-effekt
-```
-
-Build the project:
-```sh
-effekt --build src/main.effekt
-```
-This builds the project into the `out/` directory, creating a runnable file `out/main`.
-
-To see all available options and backends, run:
-```sh
-effekt --help
-```
-
-### Nix-related commands
-
-While Nix installation is optional, it provides several benefits:
-
-Update dependencies (also runs automatically in CI):
-```sh
-nix flake update
-```
-
-Open a shell with all necessary dependencies:
-```sh
-nix develop
-```
-
-Run the main entry point:
-```sh
-nix run
-```
-
-Build the project (output in `result/bin/`):
-```sh
-nix build
-```
-
-## Example projects using this template
-
-- [see the `effekt-community` GitHub organization](https://github.com/effekt-community/)
-- This very project!
-
-## Repository structure
-
-- `.github/workflows/*.yml`: Contains the [CI](#ci) definitions
-- `src/`: Contains the source code
-  - `main.effekt`: Main entry point
-  - `test.effekt`: Entry point for tests
-  - `lib.effekt`: Library code imported by `main` and `test`
-- `flake.nix`: Package configuration in a Nix flake
-- `flake.lock`: Auto-generated lockfile for dependencies
-- `LICENSE`: Project license
-- `README`: This README file
-
-## CI
-
-Two GitHub Actions are set up:
-
-1. `flake-check`:
-   - Checks the `flake.nix` file, builds and tests the project
-   - Runs on demand, on `main`, and on PRs
-   - To run custom commands, add a step using:
-     - `nix run -- <ARGS>` to run the main entry point with the given arguments
-     - `nix develop -c '<bash command to run>'` to run commands in the correct environment
-
-2. `update-flake-lock`:
-   - Updates package versions in `flake.nix`
-   - Runs on demand and weekly (Tuesdays at 00:00 UTC)
+* File In- and Output
+* Something to visualise the game in the terminal. Since they are all grid-based, a `update_grid()` effekt would be usefull
+* Something to get the user Input and check if its valid, this could mean, the game throws an effekt `playerinput(options)`, the handler checks if the user input is in `options` and then resumes with the input (and waits for valid input).
+* Some Puzzle and Solver specific effekts and handlers, like `direction(options)` for Zip - here the effekt can be handled by getting some user input (see above) or by handling it with a computer solver.
+* many more (also depending on the *Can-have*s)
