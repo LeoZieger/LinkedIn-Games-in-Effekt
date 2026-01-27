@@ -48,6 +48,7 @@ def playinterface[A, C]() {gameloop: () => Unit / {Gamestate[A, C]}} = {
 
       def gameWon(msg) = {
         println(msg)
+        println("You are smarter than 96% of CEOs!")
       }
   }
 }
